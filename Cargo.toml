@@ -25,3 +25,6 @@ clap = "2.33.1"
 
 [target.'cfg(windows)'.dependencies]
 winapi-util = "0.1.5"
+
+[target.'cfg(unix)'.dependencies]
+nix = "0.21.0"

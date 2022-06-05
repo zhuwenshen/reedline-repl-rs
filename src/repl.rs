@@ -299,7 +299,7 @@ where
         Ok(())
     }
 }
-
+#[cfg(unix)]
 #[cfg(test)]
 mod tests {
     use crate::error::*;
