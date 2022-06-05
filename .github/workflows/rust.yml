@@ -16,7 +16,17 @@ jobs:
 
     steps:
     - uses: actions/checkout@v3
-    - name: Build
+
+    - name: ⚡ install Rust stable
+      uses: actions-rs/toolchain@v1
+      with:
+        profile: minimal
+        toolchain: stable
+
+    - uses: Swatinem/rust-cache@v1
+
+    - name: 🚧 Build
       run: cargo build --verbose
-    - name: Run tests
-      run: cargo test --verbose
+
+    - name: ✅ Run tests
+      run: cargo test --lib --verbose

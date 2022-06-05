@@ -299,71 +299,19 @@ where
         Ok(())
     }
 }
+
 #[cfg(unix)]
 #[cfg(test)]
 mod tests {
     use crate::error::*;
-    use crate::repl::{Helper, Repl};
+    use crate::repl::Repl;
     use crate::{initialize_repl, Value};
     use crate::{Command, Parameter};
     use clap::{crate_description, crate_name, crate_version};
-    use nix::sys::wait::{waitpid, WaitStatus};
-    use nix::unistd::{close, dup2, fork, pipe, ForkResult};
     use std::collections::HashMap;
-    use std::fs::File;
-    use std::io::Write;
-    use std::os::unix::io::FromRawFd;
-
-    fn test_error_handler<Context>(error: Error, _repl: &Repl<Context, Error>) -> Result<()> {
-        Err(error)
-    }
 
     fn foo<T>(args: HashMap<String, Value>, _context: &mut T) -> Result<Option<String>> {
         Ok(Some(format!("foo {:?}", args)))
-    }
-
-    fn run_repl<Context>(mut repl: Repl<Context, Error>, input: &str, expected: Result<()>) {
-        let (rdr, wrtr) = pipe().unwrap();
-        unsafe {
-            match fork() {
-                Ok(ForkResult::Parent { child, .. }) => {
-                    // Parent
-                    let mut f = File::from_raw_fd(wrtr);
-                    write!(f, "{}", input).unwrap();
-                    if let WaitStatus::Exited(_, exit_code) = waitpid(child, None).unwrap() {
-                        assert!(exit_code == 0);
-                    };
-                }
-                Ok(ForkResult::Child) => {
-                    std::panic::set_hook(Box::new(|panic_info| {
-                        println!("Caught panic: {:?}", panic_info);
-                        if let Some(location) = panic_info.location() {
-                            println!(
-                                "panic occurred in file '{}' at line {}",
-                                location.file(),
-                                location.line(),
-                            );
-                        } else {
-                            println!("panic occurred but can't get location information...");
-                        }
-                    }));
-
-                    dup2(rdr, 0).unwrap();
-                    close(rdr).unwrap();
-                    let mut editor: rustyline::Editor<Helper> = rustyline::Editor::new();
-                    let mut eof = false;
-                    let result = repl.handle_line(&mut editor, &mut eof);
-                    let _ = std::panic::take_hook();
-                    if expected == result {
-                        std::process::exit(0);
-                    } else {
-                        eprintln!("Expected {:?}, got {:?}", expected, result);
-                        std::process::exit(1);
-                    }
-                }
-                Err(_) => println!("Fork failed"),
-            }
-        }
     }
 
     #[test]
@@ -373,68 +321,6 @@ mod tests {
         assert_eq!(crate_name!(), repl.name);
         assert_eq!(crate_version!(), repl.version);
         assert_eq!(crate_description!(), repl.description);
-
-        Ok(())
-    }
-
-    #[test]
-    fn test_empty_line_does_nothing() -> Result<()> {
-        let repl = Repl::new(())
-            .with_name("test")
-            .with_version("v0.1.0")
-            .with_description("Testing 1, 2, 3...")
-            .with_error_handler(test_error_handler)
-            .add_command(
-                Command::new("foo", foo)
-                    .with_parameter(Parameter::new("bar").set_required(true)?)?
-                    .with_parameter(Parameter::new("baz").set_required(true)?)?
-                    .with_help("Do foo when you can"),
-            );
-        run_repl(repl, "\n", Ok(()));
-
-        Ok(())
-    }
-
-    #[test]
-    fn test_missing_required_arg_fails() -> Result<()> {
-        let repl = Repl::new(())
-            .with_name("test")
-            .with_version("v0.1.0")
-            .with_description("Testing 1, 2, 3...")
-            .with_error_handler(test_error_handler)
-            .add_command(
-                Command::new("foo", foo)
-                    .with_parameter(Parameter::new("bar").set_required(true)?)?
-                    .with_parameter(Parameter::new("baz").set_required(true)?)?
-                    .with_help("Do foo when you can"),
-            );
-        run_repl(
-            repl,
-            "foo bar\n",
-            Err(Error::MissingRequiredArgument("foo".into(), "baz".into())),
-        );
-
-        Ok(())
-    }
-
-    #[test]
-    fn test_unknown_command_fails() -> Result<()> {
-        let repl = Repl::new(())
-            .with_name("test")
-            .with_version("v0.1.0")
-            .with_description("Testing 1, 2, 3...")
-            .with_error_handler(test_error_handler)
-            .add_command(
-                Command::new("foo", foo)
-                    .with_parameter(Parameter::new("bar").set_required(true)?)?
-                    .with_parameter(Parameter::new("baz").set_required(true)?)?
-                    .with_help("Do foo when you can"),
-            );
-        run_repl(
-            repl,
-            "bar baz\n",
-            Err(Error::UnknownCommand("bar".to_string())),
-        );
 
         Ok(())
     }
@@ -457,42 +343,6 @@ mod tests {
             Err(Error::IllegalDefaultError("bar".into())),
             Parameter::new("bar").set_required(true)?.set_default("foo")
         );
-
-        Ok(())
-    }
-
-    #[test]
-    fn test_string_with_spaces_for_argument() -> Result<()> {
-        let repl = Repl::new(())
-            .with_name("test")
-            .with_version("v0.1.0")
-            .with_description("Testing 1, 2, 3...")
-            .with_error_handler(test_error_handler)
-            .add_command(
-                Command::new("foo", foo)
-                    .with_parameter(Parameter::new("bar").set_required(true)?)?
-                    .with_parameter(Parameter::new("baz").set_required(true)?)?
-                    .with_help("Do foo when you can"),
-            );
-        run_repl(repl, "foo \"baz test 123\" foo\n", Ok(()));
-
-        Ok(())
-    }
-
-    #[test]
-    fn test_string_with_spaces_for_argument_last() -> Result<()> {
-        let repl = Repl::new(())
-            .with_name("test")
-            .with_version("v0.1.0")
-            .with_description("Testing 1, 2, 3...")
-            .with_error_handler(test_error_handler)
-            .add_command(
-                Command::new("foo", foo)
-                    .with_parameter(Parameter::new("bar").set_required(true)?)?
-                    .with_parameter(Parameter::new("baz").set_required(true)?)?
-                    .with_help("Do foo when you can"),
-            );
-        run_repl(repl, "foo foo \"baz test 123\"\n", Ok(()));
 
         Ok(())
     }
