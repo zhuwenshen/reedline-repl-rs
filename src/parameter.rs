@@ -1,11 +1,14 @@
 use crate::error::*;
+use std::collections::HashMap;
 
 /// Command parameter
-#[derive(Debug, PartialEq)]
+#[derive(Debug, PartialEq, Clone)]
 pub struct Parameter {
     pub(crate) name: String,
     pub(crate) required: bool,
     pub(crate) default: Option<String>,
+    pub(crate) help_summary: Option<String>,
+    pub(crate) allowed_values: HashMap<String, Option<String>>,
 }
 
 impl Parameter {
@@ -14,7 +17,9 @@ impl Parameter {
         Self {
             name: name.into(),
             required: false,
+            allowed_values: HashMap::new(),
             default: None,
+            help_summary: None,
         }
     }
 
@@ -27,6 +32,21 @@ impl Parameter {
         self.required = required;
 
         Ok(self)
+    }
+
+    /// Sets help summary
+    pub fn with_help(mut self, help_summary: &str) -> Self {
+        self.help_summary = Some(help_summary.to_string());
+        self
+    }
+
+    /// Add an allowed value the parameter may take with optional help text
+    pub fn add_allowed_value(mut self, allowed_value: &str, help_summary: Option<&str>) -> Self {
+        self.allowed_values.insert(
+            allowed_value.to_string(),
+            help_summary.map(|s| s.to_string()),
+        );
+        self
     }
 
     /// Set a default for an optional parameter.

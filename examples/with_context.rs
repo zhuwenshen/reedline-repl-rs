@@ -1,7 +1,7 @@
-extern crate repl_rs;
+extern crate reedline_repl_rs;
 
-use repl_rs::{Command, Parameter, Result, Value};
-use repl_rs::{Convert, Repl};
+use reedline_repl_rs::{Command, Parameter, Result, Value};
+use reedline_repl_rs::{Convert, Repl};
 use std::collections::{HashMap, VecDeque};
 
 /// Example using Repl with Context
@@ -34,7 +34,6 @@ fn main() -> Result<()> {
         .with_name("MyApp")
         .with_version("v0.1.0")
         .with_description("My very cool app")
-        .use_completion(true)
         .add_command(
             Command::new("append", append)
                 .with_parameter(Parameter::new("name").set_required(true)?)?

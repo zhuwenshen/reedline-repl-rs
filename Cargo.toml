@@ -1,22 +1,27 @@
 [package]
-name = "repl-rs"
-version = "0.2.6"
-authors = ["Jack Lund <jackl@geekheads.net>"]
-description = "Library to generate a REPL for your application"
+name = "reedline-repl-rs"
+version = "0.1.0"
+authors = ["Artur Hallmann <arturh@arturh.de>", "Jack Lund <jackl@geekheads.net>"]
+description = "Library to generate a REPL for your application based on reedline"
 license = "MIT"
-repository = "https://github.com/jacklund/repl-rs"
-homepage = "https://github.com/jacklund/repl-rs"
+repository = "https://github.com/arturh85/reedline-repl-rs"
+homepage = "https://github.com/arturh85/reedline-repl-rs"
 readme = "README.md"
 keywords = ["repl", "interpreter"]
 categories = ["command-line-interface"]
-edition = "2018"
+edition = "2021"
 
 # See more keys and their definitions at https://doc.rust-lang.org/cargo/reference/manifest.html
 
 [dependencies]
-rustyline = "8.2.0"
-yansi = "0.5.0"
-nix = "0.21.0"
+reedline = "0.6.0"
+regex = "1.5.6"
+yansi = "0.5.1"
+nu-ansi-term = { version = "0.45.1" }
+crossterm = { version = "0.23.2" }
+
+[dev-dependencies]
 clap = "2.33.1"
-regex = "1.5.4"
-rustyline-derive = "0.4.0"
+
+[target.'cfg(windows)'.dependencies]
+winapi-util = "0.1.5"

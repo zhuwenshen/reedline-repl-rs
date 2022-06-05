@@ -1,12 +1,12 @@
-//! repl-rs - [REPL](https://en.wikipedia.org/wiki/Read%E2%80%93eval%E2%80%93print_loop) library
+//! reedline-repl-rs - [REPL](https://en.wikipedia.org/wiki/Read%E2%80%93eval%E2%80%93print_loop) library
 //! for Rust
 //!
 //! # Example
 //!
 //! ```
 //! use std::collections::HashMap;
-//! use repl_rs::{Command, Parameter, Result, Value};
-//! use repl_rs::{Convert, Repl};
+//! use reedline_repl_rs::{Command, Parameter, Result, Value};
+//! use reedline_repl_rs::{Convert, Repl};
 //!
 //! // Write "Hello"
 //! fn hello<T>(args: HashMap<String, Value>, _context: &mut T) -> Result<Option<String>> {
@@ -26,7 +26,7 @@
 //!     repl.run()
 //!  }
 //! ```
-//! repl-rs uses the [builder](https://en.wikipedia.org/wiki/Builder_pattern) pattern extensively.
+//! reedline-repl-rs uses the [builder](https://en.wikipedia.org/wiki/Builder_pattern) pattern extensively.
 //! What these lines are doing is:
 //! - creating a repl with an empty Context (see below)
 //! - with a name of "MyApp", the given version, and the given description
@@ -52,8 +52,8 @@
 //! The [Value](struct.Value.html) type has conversions defined for all the primitive types. Here's
 //! how that works in practice:
 //! ```
-//! use repl_rs::{Command, Parameter, Result, Value};
-//! use repl_rs::{Convert, Repl};
+//! use reedline_repl_rs::{Command, Parameter, Result, Value};
+//! use reedline_repl_rs::{Convert, Repl};
 //! use std::collections::HashMap;
 //!
 //! // Add two numbers.
@@ -84,8 +84,8 @@
 //!
 //! The `Context` type is used to keep state between REPL calls. Here's an example:
 //! ```
-//! use repl_rs::{Command, Parameter, Result, Value};
-//! use repl_rs::{Convert, Repl};
+//! use reedline_repl_rs::{Command, Parameter, Result, Value};
+//! use reedline_repl_rs::{Convert, Repl};
 //! use std::collections::{HashMap, VecDeque};
 //!
 //! #[derive(Default)]
@@ -132,7 +132,7 @@
 //! - the context is passed to your command callback functions as a mutable reference
 //!
 //! # Help
-//! repl-rs has support for supplying help commands for your REPL. This is accomplished through the
+//! reedline-repl-rs has support for supplying help commands for your REPL. This is accomplished through the
 //! [HelpViewer](trait.HelpViewer.html), which is a trait that has a default implementation which should give you pretty
 //! much what you expect.
 //! ```bash
@@ -154,15 +154,15 @@
 //!
 //! # Errors
 //!
-//! Your command functions don't need to return `repl_rs::Error`; you can return any error from
+//! Your command functions don't need to return `reedline_repl_rs::Error`; you can return any error from
 //! them. Your error will need to implement `std::fmt::Display`, so the Repl can print the error,
-//! and you'll need to implement `std::convert::From` for `repl_rs::Error` to your error type.
+//! and you'll need to implement `std::convert::From` for `reedline_repl_rs::Error` to your error type.
 //! This makes error handling in your command functions easier, since you can just allow whatever
 //! errors your functions emit bubble up.
 //!
 //! ```
-//! use repl_rs::{Command, Parameter, Value};
-//! use repl_rs::{Convert, Repl};
+//! use reedline_repl_rs::{Command, Parameter, Value};
+//! use reedline_repl_rs::{Convert, Repl};
 //! use std::collections::HashMap;
 //! use std::fmt;
 //! use std::result::Result;
@@ -171,12 +171,12 @@
 //! #[derive(Debug)]
 //! enum Error {
 //!     DivideByZeroError,
-//!     ReplError(repl_rs::Error),
+//!     ReplError(reedline_repl_rs::Error),
 //! }
 //!
-//! // Implement conversion from repl_rs::Error to my error type
-//! impl From<repl_rs::Error> for Error {
-//!     fn from(error: repl_rs::Error) -> Self {
+//! // Implement conversion from reedline_repl_rs::Error to my error type
+//! impl From<reedline_repl_rs::Error> for Error {
+//!     fn from(error: reedline_repl_rs::Error) -> Self {
 //!         Error::ReplError(error)
 //!     }
 //! }
@@ -218,13 +218,13 @@
 //! }
 //! ```
 //!
-extern crate clap;
-extern crate rustyline;
 
 mod command;
+mod completer;
 mod error;
 mod help;
 mod parameter;
+mod prompt;
 mod repl;
 mod value;
 

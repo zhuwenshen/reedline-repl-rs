@@ -4,6 +4,7 @@ use crate::Parameter;
 use std::fmt;
 
 /// Struct to define a command in the REPL
+
 pub struct Command<Context, E> {
     pub(crate) name: String,
     pub(crate) parameters: Vec<Parameter>,

@@ -1,19 +1,19 @@
-extern crate repl_rs;
+extern crate reedline_repl_rs;
 
 use std::fmt;
 
-use repl_rs::{Command, Repl, Value};
+use reedline_repl_rs::{Command, Repl, Value};
 use std::collections::HashMap;
 
 /// Example using Repl with a custom error type.
 #[derive(Debug)]
 enum CustomError {
-    ReplError(repl_rs::Error),
+    ReplError(reedline_repl_rs::Error),
     StringError(String),
 }
 
-impl From<repl_rs::Error> for CustomError {
-    fn from(e: repl_rs::Error) -> Self {
+impl From<reedline_repl_rs::Error> for CustomError {
+    fn from(e: reedline_repl_rs::Error) -> Self {
         CustomError::ReplError(e)
     }
 }
@@ -37,7 +37,7 @@ fn hello<T>(
     Err(CustomError::StringError("Returning an error".to_string()))
 }
 
-fn main() -> Result<(), repl_rs::Error> {
+fn main() -> Result<(), reedline_repl_rs::Error> {
     let mut repl = Repl::new(())
         .with_name("MyApp")
         .with_version("v0.1.0")

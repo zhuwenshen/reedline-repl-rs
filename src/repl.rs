@@ -1,42 +1,47 @@
+use crate::completer::ReplCompleter;
 use crate::error::*;
 use crate::help::{DefaultHelpViewer, HelpContext, HelpEntry, HelpViewer};
+use crate::prompt::SimplePrompt;
 use crate::Value;
 use crate::{Command, Parameter};
-use rustyline::completion;
-use rustyline_derive::{Helper, Highlighter, Hinter, Validator};
+use crossterm::event::{KeyCode, KeyModifiers};
+use nu_ansi_term::{Color, Style};
+use reedline::{
+    default_emacs_keybindings, ColumnarMenu, DefaultHinter, DefaultValidator, Emacs,
+    ExampleHighlighter, FileBackedHistory, Reedline, ReedlineEvent, ReedlineMenu, Signal,
+};
 use std::boxed::Box;
 use std::collections::HashMap;
 use std::fmt::Display;
+use std::path::PathBuf;
 use yansi::Paint;
 
 type ErrorHandler<Context, E> = fn(error: E, repl: &Repl<Context, E>) -> Result<()>;
 
-fn default_error_handler<Context, E: std::fmt::Display>(
-    error: E,
-    _repl: &Repl<Context, E>,
-) -> Result<()> {
+fn default_error_handler<Context, E: Display>(error: E, _repl: &Repl<Context, E>) -> Result<()> {
     eprintln!("{}", error);
     Ok(())
 }
 
 /// Main REPL struct
-pub struct Repl<Context, E: std::fmt::Display> {
+pub struct Repl<Context, E: Display> {
     name: String,
+    banner: Option<String>,
     version: String,
     description: String,
     prompt: Box<dyn Display>,
     custom_prompt: bool,
     commands: HashMap<String, Command<Context, E>>,
+    history: Option<PathBuf>,
     context: Context,
     help_context: Option<HelpContext>,
     help_viewer: Box<dyn HelpViewer>,
     error_handler: ErrorHandler<Context, E>,
-    use_completion: bool,
 }
 
 impl<Context, E> Repl<Context, E>
 where
-    E: Display + From<Error>,
+    E: Display + From<Error> + std::fmt::Debug,
 {
     /// Create a new Repl with the given context's initial value.
     pub fn new(context: Context) -> Self {
@@ -44,16 +49,17 @@ where
 
         Self {
             name: name.clone(),
+            banner: None,
             version: String::new(),
             description: String::new(),
             prompt: Box::new(Paint::green(format!("{}> ", name)).bold()),
             custom_prompt: false,
             commands: HashMap::new(),
+            history: None,
             context,
             help_context: None,
             help_viewer: Box::new(DefaultHelpViewer::new()),
             error_handler: default_error_handler,
-            use_completion: false,
         }
     }
 
@@ -63,6 +69,13 @@ where
         if !self.custom_prompt {
             self.prompt = Box::new(Paint::green(format!("{}> ", name)).bold());
         }
+
+        self
+    }
+
+    /// Give your Repl a banner. This is printed at the start of running the Repl.
+    pub fn with_banner(mut self, banner: &str) -> Self {
+        self.banner = Some(banner.to_string());
 
         self
     }
@@ -77,6 +90,13 @@ where
     /// Give your Repl a description. This is used in the help summary for the Repl.
     pub fn with_description(mut self, description: &str) -> Self {
         self.description = description.to_string();
+
+        self
+    }
+
+    /// Give your Repl a file based history saved at history_path
+    pub fn with_history(mut self, history_path: PathBuf) -> Self {
+        self.history = Some(history_path);
 
         self
     }
@@ -105,13 +125,6 @@ where
         self
     }
 
-    /// Set whether to use command completion when tab is hit. Defaults to false.
-    pub fn use_completion(mut self, value: bool) -> Self {
-        self.use_completion = value;
-
-        self
-    }
-
     /// Add a command to your REPL
     pub fn add_command(mut self, command: Command<Context, E>) -> Self {
         self.commands.insert(command.name.clone(), command);
@@ -132,7 +145,7 @@ where
         let mut validated = HashMap::new();
         for (index, parameter) in parameters.iter().enumerate() {
             if index < args.len() {
-                validated.insert(parameter.name.clone(), Value::new(&args[index]));
+                validated.insert(parameter.name.clone(), Value::new(args[index]));
             } else if parameter.required {
                 return Err(Error::MissingRequiredArgument(
                     command.into(),
@@ -151,7 +164,7 @@ where
     fn handle_command(&mut self, command: &str, args: &[&str]) -> core::result::Result<(), E> {
         match self.commands.get(command) {
             Some(definition) => {
-                let validated = self.validate_arguments(&command, &definition.parameters, args)?;
+                let validated = self.validate_arguments(command, &definition.parameters, args)?;
                 match (definition.callback)(validated, &mut self.context) {
                     Ok(Some(value)) => println!("{}", value),
                     Ok(None) => (),
@@ -173,7 +186,7 @@ where
     fn show_help(&self, args: &[&str]) -> Result<()> {
         if args.is_empty() {
             self.help_viewer
-                .help_general(&self.help_context.as_ref().unwrap())?;
+                .help_general(self.help_context.as_ref().unwrap())?;
         } else {
             let entry_opt = self
                 .help_context
@@ -184,7 +197,7 @@ where
                 .find(|entry| entry.command == args[0]);
             match entry_opt {
                 Some(entry) => {
-                    self.help_viewer.help_command(&entry)?;
+                    self.help_viewer.help_command(entry)?;
                 }
                 None => eprintln!("Help not found for command '{}'", args[0]),
             };
@@ -198,7 +211,7 @@ where
             let r = regex::Regex::new(r#"("[^"\n]+"|[\S]+)"#).unwrap();
             let args = r
                 .captures_iter(trimmed)
-                .map(|a| a[0].to_string().replace("\"", ""))
+                .map(|a| a[0].to_string().replace('\"', ""))
                 .collect::<Vec<String>>();
             let mut args = args.iter().fold(vec![], |mut state, a| {
                 state.push(a.as_str());
@@ -231,94 +244,59 @@ where
         ));
     }
 
-    fn create_helper(&mut self) -> Helper {
-        let mut helper = Helper::new();
-        if self.use_completion {
-            for name in self.commands.keys() {
-                helper.add_command(name.to_string());
-            }
-        }
-
-        helper
-    }
-
     pub fn run(&mut self) -> Result<()> {
+        enable_virtual_terminal_processing();
         self.construct_help_context();
-        let mut editor: rustyline::Editor<Helper> = rustyline::Editor::new();
-        let helper = Some(self.create_helper());
-        editor.set_helper(helper);
-        println!("Welcome to {} {}", self.name, self.version);
-        let mut eof = false;
-        while !eof {
-            self.handle_line(&mut editor, &mut eof)?;
+        if let Some(banner) = &self.banner {
+            println!("{}", banner);
         }
-
-        Ok(())
-    }
-
-    fn handle_line(
-        &mut self,
-        editor: &mut rustyline::Editor<Helper>,
-        eof: &mut bool,
-    ) -> Result<()> {
-        match editor.readline(&format!("{}", self.prompt)) {
-            Ok(line) => {
-                editor.add_history_entry(line.clone());
-                if let Err(error) = self.process_line(line) {
-                    (self.error_handler)(error, self)?;
-                }
-                *eof = false;
-                Ok(())
-            }
-            Err(rustyline::error::ReadlineError::Eof) => {
-                *eof = true;
-                Ok(())
-            }
-            Err(error) => {
-                eprintln!("Error reading line: {}", error);
-                *eof = false;
-                Ok(())
-            }
-        }
-    }
-}
-
-// rustyline Helper struct
-// Currently just does command completion with <tab>, if
-// use_completion() is set on the REPL
-#[derive(Clone, Helper, Hinter, Highlighter, Validator)]
-struct Helper {
-    commands: Vec<String>,
-}
-
-impl Helper {
-    fn new() -> Self {
-        Self { commands: vec![] }
-    }
-
-    fn add_command(&mut self, command: String) {
-        self.commands.push(command);
-    }
-}
-
-impl completion::Completer for Helper {
-    type Candidate = String;
-
-    fn complete(
-        &self,
-        line: &str,
-        _pos: usize,
-        _ctx: &rustyline::Context<'_>,
-    ) -> rustyline::Result<(usize, Vec<Self::Candidate>)> {
-        // Complete based on whether the current line is a substring
-        // of one of the set commands
-        let ret: Vec<Self::Candidate> = self
+        let prompt = SimplePrompt::new("repl");
+        let mut commands: Vec<String> = self
             .commands
             .iter()
-            .filter(|cmd| cmd.contains(line))
-            .map(|s| s.to_string())
+            .map(|(_, command)| command.name.clone())
             .collect();
-        Ok((0, ret))
+        commands.push("help".to_string());
+        let completer = Box::new(ReplCompleter::new(&self.commands));
+        let completion_menu = Box::new(ColumnarMenu::default().with_name("completion_menu"));
+        let mut keybindings = default_emacs_keybindings();
+        keybindings.add_binding(
+            KeyModifiers::NONE,
+            KeyCode::Tab,
+            ReedlineEvent::Menu("completion_menu".to_string()),
+        );
+        let validator = Box::new(DefaultValidator);
+        let mut line_editor = Reedline::create()
+            .with_edit_mode(Box::new(Emacs::new(keybindings)))
+            .with_completer(completer)
+            .with_menu(ReedlineMenu::EngineCompleter(completion_menu))
+            .with_hinter(Box::new(
+                DefaultHinter::default().with_style(Style::new().italic().fg(Color::LightGray)),
+            ))
+            .with_highlighter(Box::new(ExampleHighlighter::new(commands.clone())))
+            .with_validator(validator)
+            .with_partial_completions(true)
+            .with_quick_completions(false);
+
+        if let Some(history_path) = &self.history {
+            let history = FileBackedHistory::with_file(25, history_path.to_path_buf()).unwrap();
+            line_editor = line_editor.with_history(Box::new(history));
+        }
+
+        loop {
+            let sig = line_editor.read_line(&prompt).unwrap();
+            match sig {
+                Signal::Success(line) => {
+                    self.process_line(line).unwrap();
+                }
+                Signal::CtrlD | Signal::CtrlC => {
+                    println!("\nquitting...");
+                    break;
+                }
+            }
+        }
+        disable_virtual_terminal_processing();
+        Ok(())
     }
 }
 
@@ -518,4 +496,36 @@ mod tests {
 
         Ok(())
     }
+}
+
+#[cfg(windows)]
+pub fn enable_virtual_terminal_processing() {
+    use winapi_util::console::Console;
+    if let Ok(mut term) = Console::stdout() {
+        let _guard = term.set_virtual_terminal_processing(true);
+    }
+    if let Ok(mut term) = Console::stderr() {
+        let _guard = term.set_virtual_terminal_processing(true);
+    }
+}
+
+#[cfg(windows)]
+pub fn disable_virtual_terminal_processing() {
+    use winapi_util::console::Console;
+    if let Ok(mut term) = Console::stdout() {
+        let _guard = term.set_virtual_terminal_processing(false);
+    }
+    if let Ok(mut term) = Console::stderr() {
+        let _guard = term.set_virtual_terminal_processing(false);
+    }
+}
+
+#[cfg(not(windows))]
+pub fn enable_virtual_terminal_processing() {
+    // no-op
+}
+
+#[cfg(not(windows))]
+pub fn disable_virtual_terminal_processing() {
+    // no-op
 }

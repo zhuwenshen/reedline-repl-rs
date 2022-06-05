@@ -1,7 +1,7 @@
-extern crate repl_rs;
+extern crate reedline_repl_rs;
 
-use repl_rs::{Command, Parameter, Result, Value};
-use repl_rs::{Convert, Repl};
+use reedline_repl_rs::{Command, Parameter, Result, Value};
+use reedline_repl_rs::{Convert, Repl};
 use std::collections::HashMap;
 
 /// Example using Repl without Context (or, more precisely, a Context of ())
