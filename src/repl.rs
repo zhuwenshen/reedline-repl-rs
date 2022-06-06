@@ -2,7 +2,7 @@ use crate::completer::ReplCompleter;
 use crate::error::*;
 use crate::prompt::SimplePrompt;
 use crate::Callback;
-use crate::Command;
+use crate::command::Command;
 use crossterm::event::{KeyCode, KeyModifiers};
 use nu_ansi_term::{Color, Style};
 use reedline::{
@@ -218,7 +218,7 @@ where
         if let Some(banner) = &self.banner {
             println!("{}", banner);
         }
-        let prompt = SimplePrompt::new("repl");
+        let prompt = SimplePrompt::new(&self.prompt.to_string());
         let mut commands: Vec<String> = self
             .commands
             .iter()

@@ -3,7 +3,7 @@ use std::fmt;
 
 /// Struct to define a command in the REPL
 
-pub struct Command<Context, E> {
+pub(crate) struct Command<Context, E> {
     pub(crate) name: String,
     pub(crate) clap_command: clap::Command<'static>,
     pub(crate) callback: Callback<Context, E>,
@@ -15,7 +15,7 @@ impl<Context, E> fmt::Debug for Command<Context, E> {
     }
 }
 
-impl<Context, E> std::cmp::PartialEq for Command<Context, E> {
+impl<Context, E> PartialEq for Command<Context, E> {
     fn eq(&self, other: &Command<Context, E>) -> bool {
         self.name == other.name
     }

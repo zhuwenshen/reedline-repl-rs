@@ -1,4 +1,4 @@
-use crate::Command;
+use crate::command::Command;
 use reedline::{Completer, Span, Suggestion};
 use std::collections::HashMap;
 

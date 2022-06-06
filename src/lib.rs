@@ -2,29 +2,8 @@
 //! for Rust
 //!
 //! # Example
-//!
 //! ```
-//! use clap::{Arg, ArgMatches, Command};
-//! use reedline_repl_rs::{Result, Repl};
-//!
-//! // Write "Hello"
-//! fn hello<T>(args: &ArgMatches, _context: &mut T) -> Result<Option<String>> {
-//!     Ok(Some(format!("Hello, {}", args.value_of("who").unwrap())))
-//! }
-//!
-//! fn main() -> Result<()> {
-//!     let mut repl = Repl::new(())
-//!         .with_name("MyApp")
-//!         .with_version("v0.1.0")
-//!         .with_description("My very cool app")
-//!         .add_command(
-//!              Command::new("hello")
-//!                  .arg(Arg::new("who").required(true))
-//!                  .about("Greetings!"),
-//!              hello
-//!     );
-//!     repl.run()
-//!  }
+#![doc = include_str!("../examples/hello_world.rs")]
 //! ```
 //! reedline-repl-rs uses the [builder](https://en.wikipedia.org/wiki/Builder_pattern) pattern extensively.
 //! What these lines are doing is:
@@ -51,49 +30,7 @@
 //!
 //! The `Context` type is used to keep state between REPL calls. Here's an example:
 //! ```
-//! use clap::{ArgMatches, Command};
-//! use reedline_repl_rs::{Result, Repl};
-//! use std::collections::VecDeque;
-//!
-//! #[derive(Default)]
-//! struct Context {
-//!     list: VecDeque<String>,
-//! }
-//!
-//! // Append name to list
-//! fn append(args: &ArgMatches, context: &mut Context) -> Result<Option<String>> {
-//!     let name: String = matches.value_of("name").unwrap().to_string();
-//!     context.list.push_back(name);
-//!     let list: Vec<String> = context.list.clone().into();
-//!
-//!     Ok(Some(list.join(", ")))
-//! }
-//!
-//! // Prepend name to list
-//! fn prepend(args: &ArgMatches, context: &mut Context) -> Result<Option<String>> {
-//!     let name: String = matches.value_of("name").unwrap().to_string();
-//!     context.list.push_front(name);
-//!     let list: Vec<String> = context.list.clone().into();
-//!
-//!     Ok(Some(list.join(", ")))
-//! }
-//!
-//! fn main() -> Result<()> {
-//!     let mut repl = Repl::new(Context::default())
-//!         .add_command(
-//!             Command::new("append")
-//!                 .with_parameter(Parameter::new("name").set_required(true)?)?
-//!                 .with_help("Append name to end of list"),
-//!             append
-//!         )
-//!         .add_command(
-//!             Command::new("prepend")
-//!                 .with_parameter(Parameter::new("name").set_required(true)?)?
-//!                 .with_help("Prepend name to front of list"),
-//!             prepend
-//!         );
-//!     repl.run()
-//! }
+#![doc = include_str!("../examples/with_context.rs")]
 //! ```
 //! A few things to note:
 //! - you pass in the initial value for your Context struct to the call to
@@ -102,19 +39,30 @@
 //!
 //! # Help
 //! reedline-repl-rs automatically support for supplying help commands for your REPL via clap.
+//!
 //! ```bash
 //! % myapp
-//! Welcome to MyApp v0.1.0
-//! MyApp> help
+//! MyApp> 〉help
 //! MyApp v0.1.0: My very cool app
-//! ------------------------------
-//! append - Append name to end of list
-//! prepend - Prepend name to front of list
-//! MyApp> help append
-//! append: Append name to end of list
-//! Usage:
-//!         append name
-//! MyApp>
+//!
+//! COMMANDS:
+//!     append     Append name to end of list
+//!     help       Print this message or the help of the given subcommand(s)
+//!     prepend    Prepend name to front of list
+//!
+//! MyApp> 〉help append
+//! append
+//! Append name to end of list
+//!
+//! USAGE:
+//!     append <name>
+//!
+//! ARGS:
+//!     <name>
+//!
+//! OPTIONS:
+//!     -h, --help    Print help information
+//! MyApp> 〉
 //! ```
 //!
 //! # Errors
@@ -126,63 +74,8 @@
 //! errors your functions emit bubble up.
 //!
 //! ```
-//! use reedline_repl_rs::Repl;
-//! use clap::{ArgMatches, Command};
-//! use std::fmt;
-//! use std::result::Result;
-//!
-//! // My custom error type
-//! #[derive(Debug)]
-//! enum Error {
-//!     DivideByZeroError,
-//!     ReplError(reedline_repl_rs::Error),
-//! }
-//!
-//! // Implement conversion from reedline_repl_rs::Error to my error type
-//! impl From<reedline_repl_rs::Error> for Error {
-//!     fn from(error: reedline_repl_rs::Error) -> Self {
-//!         Error::ReplError(error)
-//!     }
-//! }
-//!
-//! // My error has to implement Display as well
-//! impl fmt::Display for Error {
-//!     fn fmt(&self, f: &mut fmt::Formatter) -> std::result::Result<(), fmt::Error> {
-//!         match self {
-//!             Error::DivideByZeroError => write!(f, "Whoops, divided by zero!"),
-//!             Error::ReplError(error) => write!(f, "{}", error),
-//!         }
-//!     }
-//! }
-//!
-//! // Divide two numbers.
-//! fn divide<T>(args: &ArgMatches, _context: &mut T) -> Result<Option<String>, Error> {
-//!     let numerator: f32 = matches.value_of("numerator").unwrap().parse().unwrap();
-//!     let denominator: f32 = matches.value_of("denominator").unwrap().parse().unwrap();
-//!
-//!     if denominator == 0.0 {
-//!         return Err(Error::DivideByZeroError);
-//!     }
-//!
-//!     Ok(Some((numerator / denominator).to_string()))
-//! }
-//!
-//! fn main() -> Result<(), Error> {
-//!     let mut repl = Repl::new(())
-//!         .with_name("MyApp")
-//!         .with_version("v0.1.0")
-//!         .with_description("My very cool app")
-//!         .add_command(
-//!             Command::new("divide")
-//!                 .arg(Arg::new("numerator").required(true))
-//!                 .arg(Arg::new("denominator").required(true))
-//!                 .about("Divide two numbers"),
-//!             divide
-//!     );
-//!     Ok(repl.run()?)
-//! }
+#![doc = include_str!("../examples/custom_error.rs")]
 //! ```
-//!
 
 mod command;
 mod completer;
@@ -191,7 +84,7 @@ mod prompt;
 mod repl;
 
 pub use clap;
-pub use command::Command;
+pub use reedline;
 pub use error::{Error, Result};
 #[doc(inline)]
 pub use repl::Repl;
