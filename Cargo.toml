@@ -1,6 +1,6 @@
 [package]
 name = "reedline-repl-rs"
-version = "0.2.2"
+version = "0.2.3"
 authors = ["Artur Hallmann <arturh@arturh.de>", "Jack Lund <jackl@geekheads.net>"]
 description = "Library to generate a fancy REPL for your application based on reedline and clap"
 license = "MIT"

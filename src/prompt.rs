@@ -2,12 +2,12 @@ use reedline::{DefaultPrompt, Prompt, PromptEditMode, PromptHistorySearch};
 use std::borrow::Cow;
 
 #[derive(Clone)]
-pub struct SimplePrompt {
+pub struct ReplPrompt {
     default: DefaultPrompt,
     prefix: String,
 }
 
-impl Prompt for SimplePrompt {
+impl Prompt for ReplPrompt {
     /// Use prefix as render prompt
     fn render_prompt_left(&self) -> Cow<str> {
         {
@@ -34,16 +34,16 @@ impl Prompt for SimplePrompt {
     }
 }
 
-impl Default for SimplePrompt {
+impl Default for ReplPrompt {
     fn default() -> Self {
-        SimplePrompt::new("repl")
+        ReplPrompt::new("repl")
     }
 }
 
-impl SimplePrompt {
+impl ReplPrompt {
     /// Constructor for the default prompt, which takes the amount of spaces required between the left and right-hand sides of the prompt
-    pub fn new(left_prompt: &str) -> SimplePrompt {
-        SimplePrompt {
+    pub fn new(left_prompt: &str) -> ReplPrompt {
+        ReplPrompt {
             prefix: left_prompt.to_string(),
             default: DefaultPrompt::default(),
         }

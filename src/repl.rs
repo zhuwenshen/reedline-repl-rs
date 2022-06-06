@@ -1,8 +1,8 @@
 use crate::command::ReplCommand;
 use crate::completer::ReplCompleter;
 use crate::error::*;
-use crate::prompt::SimplePrompt;
-use crate::Callback;
+use crate::prompt::ReplPrompt;
+use crate::{paint_green_bold, AfterCommandCallback, Callback};
 use crossterm::event::{KeyCode, KeyModifiers};
 use nu_ansi_term::{Color, Style};
 use reedline::{
@@ -29,8 +29,8 @@ pub struct Repl<Context, E: Display> {
     banner: Option<String>,
     version: String,
     description: String,
-    prompt: Box<dyn Display>,
-    custom_prompt: bool,
+    prompt: ReplPrompt,
+    after_command_callback: Option<AfterCommandCallback<Context, E>>,
     commands: HashMap<String, ReplCommand<Context, E>>,
     history: Option<PathBuf>,
     history_capacity: Option<usize>,
@@ -49,7 +49,7 @@ where
 {
     /// Create a new Repl with the given context's initial value.
     pub fn new(context: Context) -> Self {
-        let name = String::new();
+        let name = String::from("repl");
         let style = Style::new().italic().fg(Color::LightGray);
         let mut keybindings = default_emacs_keybindings();
         keybindings.add_binding(
@@ -57,21 +57,22 @@ where
             KeyCode::Tab,
             ReedlineEvent::Menu("completion_menu".to_string()),
         );
+        let prompt = ReplPrompt::new(&paint_green_bold(&format!("{}> ", name)));
 
         Self {
-            name: name.clone(),
+            name,
             banner: None,
             version: String::new(),
             description: String::new(),
-            prompt: Box::new(Paint::green(format!("{}> ", name)).bold()),
-            custom_prompt: false,
             commands: HashMap::new(),
             history: None,
             history_capacity: None,
+            after_command_callback: None,
             quick_completions: true,
             partial_completions: false,
             hinter_enabled: true,
             hinter_style: style,
+            prompt,
             context,
             keybindings,
             error_handler: default_error_handler,
@@ -81,11 +82,7 @@ where
     /// Give your Repl a name. This is used in the help summary for the Repl.
     pub fn with_name(mut self, name: &str) -> Self {
         self.name = name.to_string();
-        if !self.custom_prompt {
-            self.prompt = Box::new(Paint::green(format!("{}> ", name)).bold());
-        }
-
-        self
+        self.with_formatted_prompt(&format!("{}> ", name))
     }
 
     /// Give your Repl a banner. This is printed at the start of running the Repl.
@@ -109,6 +106,13 @@ where
         self
     }
 
+    /// Give your REPL a callback which is called after every command and may update the prompt
+    pub fn with_on_after_command(mut self, callback: AfterCommandCallback<Context, E>) -> Self {
+        self.after_command_callback = Some(callback);
+
+        self
+    }
+
     /// Give your Repl a file based history saved at history_path
     pub fn with_history(mut self, history_path: PathBuf, capacity: usize) -> Self {
         self.history = Some(history_path);
@@ -118,10 +122,20 @@ where
     }
 
     /// Give your Repl a custom prompt. The default prompt is the Repl name, followed by
-    /// a `>`, all in green, followed by a space.
-    pub fn with_prompt(mut self, prompt: &'static dyn Display) -> Self {
-        self.prompt = Box::new(prompt);
-        self.custom_prompt = true;
+    /// a `>`, all in green and bold, followed by a space:
+    ///
+    /// &Paint::green(format!("{}> ", name)).bold().to_string()
+    pub fn with_prompt(mut self, prompt: &str) -> Self {
+        self.prompt.update_prefix(prompt);
+
+        self
+    }
+
+    /// Give your Repl a custom prompt while applying green/bold formatting automatically
+    ///
+    /// &Paint::green(format!("{}> ", name)).bold().to_string()
+    pub fn with_formatted_prompt(mut self, prompt: &str) -> Self {
+        self.prompt.update_prefix(prompt);
 
         self
     }
@@ -243,6 +257,18 @@ where
                         err.print().expect("failed to print");
                     }
                 };
+                if let Some(callback) = self.after_command_callback {
+                    match callback(&mut self.context) {
+                        Ok(new_prompt) => {
+                            if let Some(new_prompt) = new_prompt {
+                                self.prompt.update_prefix(&new_prompt);
+                            }
+                        }
+                        Err(err) => {
+                            eprintln!("failed to execute after_command_callback {:?}", err);
+                        }
+                    }
+                }
             }
             None => {
                 if command == "help" {
@@ -279,7 +305,6 @@ where
         if let Some(banner) = &self.banner {
             println!("{}", banner);
         }
-        let prompt = SimplePrompt::new(&self.prompt.to_string());
         let mut commands: Vec<String> = self
             .commands
             .iter()
@@ -312,7 +337,9 @@ where
         }
 
         loop {
-            let sig = line_editor.read_line(&prompt).unwrap();
+            let sig = line_editor
+                .read_line(&self.prompt)
+                .expect("failed to read_line");
             match sig {
                 Signal::Success(line) => {
                     if let Err(err) = self.process_line(line) {

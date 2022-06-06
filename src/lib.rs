@@ -88,16 +88,27 @@ pub use clap;
 pub use crossterm;
 pub use nu_ansi_term;
 pub use reedline;
+pub use yansi;
 
 pub use error::{Error, Result};
 #[doc(inline)]
 pub use repl::Repl;
 
 use clap::ArgMatches;
+use yansi::Paint;
 
 /// Command callback function signature
 pub type Callback<Context, Error> =
     fn(&ArgMatches, &mut Context) -> std::result::Result<Option<String>, Error>;
+
+/// AfterCommand callback function signature
+pub type AfterCommandCallback<Context, Error> =
+    fn(&mut Context) -> std::result::Result<Option<String>, Error>;
+
+/// Utility to format prompt strings as green and bold. Use yansi directly instead for custom colors.
+pub fn paint_green_bold(input: &str) -> String {
+    Box::new(Paint::green(input).bold()).to_string()
+}
 
 /// Initialize the name, version and description of the Repl from your crate name, version and
 /// description

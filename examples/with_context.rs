@@ -32,9 +32,9 @@ fn prepend(args: &ArgMatches, context: &mut Context) -> Result<Option<String>> {
 
 fn main() -> Result<()> {
     let mut repl = Repl::new(Context::default())
-        .with_name("MyApp")
+        .with_name("MyList")
         .with_version("v0.1.0")
-        .with_description("My very cool app")
+        .with_description("My very cool List")
         .add_command(
             Command::new("append")
                 .arg(Arg::new("name").required(true))
@@ -46,6 +46,7 @@ fn main() -> Result<()> {
                 .arg(Arg::new("name").required(true))
                 .about("Prepend name to front of list"),
             prepend,
-        );
+        )
+        .with_on_after_command(|context| Ok(Some(format!("MyList [{}]", context.list.len()))));
     repl.run()
 }
