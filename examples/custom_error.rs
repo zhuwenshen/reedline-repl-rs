@@ -1,9 +1,8 @@
 extern crate reedline_repl_rs;
 
+use clap::{ArgMatches, Command};
+use reedline_repl_rs::Repl;
 use std::fmt;
-
-use reedline_repl_rs::{Command, Repl, Value};
-use std::collections::HashMap;
 
 /// Example using Repl with a custom error type.
 #[derive(Debug)]
@@ -30,10 +29,7 @@ impl fmt::Display for CustomError {
 impl std::error::Error for CustomError {}
 
 // Do nothing, unsuccesfully
-fn hello<T>(
-    _args: HashMap<String, Value>,
-    _context: &mut T,
-) -> Result<Option<String>, CustomError> {
+fn hello<T>(_args: &ArgMatches, _context: &mut T) -> Result<Option<String>, CustomError> {
     Err(CustomError::StringError("Returning an error".to_string()))
 }
 
@@ -42,6 +38,9 @@ fn main() -> Result<(), reedline_repl_rs::Error> {
         .with_name("MyApp")
         .with_version("v0.1.0")
         .with_description("My very cool app")
-        .add_command(Command::new("hello", hello).with_help("Do nothing, unsuccessfully"));
+        .add_command(
+            Command::new("hello").about("Do nothing, unsuccessfully"),
+            hello,
+        );
     repl.run()
 }

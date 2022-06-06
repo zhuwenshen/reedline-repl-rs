@@ -4,13 +4,12 @@
 //! # Example
 //!
 //! ```
-//! use std::collections::HashMap;
-//! use reedline_repl_rs::{Command, Parameter, Result, Value};
-//! use reedline_repl_rs::{Convert, Repl};
+//! use clap::{Arg, ArgMatches, Command};
+//! use reedline_repl_rs::{Result, Repl};
 //!
 //! // Write "Hello"
-//! fn hello<T>(args: HashMap<String, Value>, _context: &mut T) -> Result<Option<String>> {
-//!     Ok(Some(format!("Hello, {}", args["who"])))
+//! fn hello<T>(args: &ArgMatches, _context: &mut T) -> Result<Option<String>> {
+//!     Ok(Some(format!("Hello, {}", args.value_of("who").unwrap())))
 //! }
 //!
 //! fn main() -> Result<()> {
@@ -19,9 +18,10 @@
 //!         .with_version("v0.1.0")
 //!         .with_description("My very cool app")
 //!         .add_command(
-//!              Command::new("hello", hello)
-//!                  .with_parameter(Parameter::new("who").set_required(true)?)?
-//!                  .with_help("Greetings!"),
+//!              Command::new("hello")
+//!                  .arg(Arg::new("who").required(true))
+//!                  .about("Greetings!"),
+//!              hello
 //!     );
 //!     repl.run()
 //!  }
@@ -34,8 +34,8 @@
 //! - the `hello` command has a single parameter, "who", which is required, and has the given help
 //! message
 //!
-//! The `hello` function takes a HashMap of named arguments, contained in a
-//! [Value](struct.Value.html) struct, and an (unused) `Context`, which is used to hold state if you
+//! The `hello` function takes a reference to [ArgMatches](https://docs.rs/clap/latest/clap/struct.ArgMatches.html),
+//! and an (unused) `Context`, which is used to hold state if you
 //! need to - the initial context is passed in to the call to
 //! [Repl::new](struct.Repl.html#method.new), in our case, `()`.
 //! Because we're not using a Context, we need to include a generic type in our `hello` function,
@@ -47,46 +47,13 @@
 //! - If the return is `Ok(None)`, it prints nothing
 //! - If the return is an error, it prints the error message to stderr
 //!
-//! # Conversions
-//!
-//! The [Value](struct.Value.html) type has conversions defined for all the primitive types. Here's
-//! how that works in practice:
-//! ```
-//! use reedline_repl_rs::{Command, Parameter, Result, Value};
-//! use reedline_repl_rs::{Convert, Repl};
-//! use std::collections::HashMap;
-//!
-//! // Add two numbers.
-//! fn add<T>(args: HashMap<String, Value>, _context: &mut T) -> Result<Option<String>> {
-//!     let first: i32 = args["first"].convert()?;
-//!     let second: i32 = args["second"].convert()?;
-//!
-//!     Ok(Some((first + second).to_string()))
-//! }
-//!
-//! fn main() -> Result<()> {
-//!     let mut repl = Repl::new(())
-//!         .with_name("MyApp")
-//!         .with_version("v0.1.0")
-//!         .with_description("My very cool app")
-//!         .add_command(
-//!             Command::new("add", add)
-//!                 .with_parameter(Parameter::new("first").set_required(true)?)?
-//!                 .with_parameter(Parameter::new("second").set_required(true)?)?
-//!                 .with_help("Add two numbers together"),
-//!     );
-//!     repl.run()
-//! }
-//! ```
-//! This example adds two numbers. The `convert()` function manages the conversion for you.
-//!
 //! # Context
 //!
 //! The `Context` type is used to keep state between REPL calls. Here's an example:
 //! ```
-//! use reedline_repl_rs::{Command, Parameter, Result, Value};
-//! use reedline_repl_rs::{Convert, Repl};
-//! use std::collections::{HashMap, VecDeque};
+//! use clap::{ArgMatches, Command};
+//! use reedline_repl_rs::{Result, Repl};
+//! use std::collections::VecDeque;
 //!
 //! #[derive(Default)]
 //! struct Context {
@@ -94,8 +61,8 @@
 //! }
 //!
 //! // Append name to list
-//! fn append(args: HashMap<String, Value>, context: &mut Context) -> Result<Option<String>> {
-//!     let name: String = args["name"].convert()?;
+//! fn append(args: &ArgMatches, context: &mut Context) -> Result<Option<String>> {
+//!     let name: String = matches.value_of("name").unwrap().to_string();
 //!     context.list.push_back(name);
 //!     let list: Vec<String> = context.list.clone().into();
 //!
@@ -103,8 +70,8 @@
 //! }
 //!
 //! // Prepend name to list
-//! fn prepend(args: HashMap<String, Value>, context: &mut Context) -> Result<Option<String>> {
-//!     let name: String = args["name"].convert()?;
+//! fn prepend(args: &ArgMatches, context: &mut Context) -> Result<Option<String>> {
+//!     let name: String = matches.value_of("name").unwrap().to_string();
 //!     context.list.push_front(name);
 //!     let list: Vec<String> = context.list.clone().into();
 //!
@@ -114,14 +81,16 @@
 //! fn main() -> Result<()> {
 //!     let mut repl = Repl::new(Context::default())
 //!         .add_command(
-//!             Command::new("append", append)
+//!             Command::new("append")
 //!                 .with_parameter(Parameter::new("name").set_required(true)?)?
 //!                 .with_help("Append name to end of list"),
+//!             append
 //!         )
 //!         .add_command(
-//!             Command::new("prepend", prepend)
+//!             Command::new("prepend")
 //!                 .with_parameter(Parameter::new("name").set_required(true)?)?
 //!                 .with_help("Prepend name to front of list"),
+//!             prepend
 //!         );
 //!     repl.run()
 //! }
@@ -132,9 +101,7 @@
 //! - the context is passed to your command callback functions as a mutable reference
 //!
 //! # Help
-//! reedline-repl-rs has support for supplying help commands for your REPL. This is accomplished through the
-//! [HelpViewer](trait.HelpViewer.html), which is a trait that has a default implementation which should give you pretty
-//! much what you expect.
+//! reedline-repl-rs automatically support for supplying help commands for your REPL via clap.
 //! ```bash
 //! % myapp
 //! Welcome to MyApp v0.1.0
@@ -149,8 +116,6 @@
 //!         append name
 //! MyApp>
 //! ```
-//! If you want to roll your own help, just implement [HelpViewer](trait.HelpViewer.html) and add it to your REPL using the
-//! [.with_help_viewer()](struct.Repl.html#method.with_help_viewer) method.
 //!
 //! # Errors
 //!
@@ -161,9 +126,8 @@
 //! errors your functions emit bubble up.
 //!
 //! ```
-//! use reedline_repl_rs::{Command, Parameter, Value};
-//! use reedline_repl_rs::{Convert, Repl};
-//! use std::collections::HashMap;
+//! use reedline_repl_rs::Repl;
+//! use clap::{ArgMatches, Command};
 //! use std::fmt;
 //! use std::result::Result;
 //!
@@ -192,9 +156,9 @@
 //! }
 //!
 //! // Divide two numbers.
-//! fn divide<T>(args: HashMap<String, Value>, _context: &mut T) -> Result<Option<String>, Error> {
-//!     let numerator: f32 = args["numerator"].convert()?;
-//!     let denominator: f32 = args["denominator"].convert()?;
+//! fn divide<T>(args: &ArgMatches, _context: &mut T) -> Result<Option<String>, Error> {
+//!     let numerator: f32 = matches.value_of("numerator").unwrap().parse().unwrap();
+//!     let denominator: f32 = matches.value_of("denominator").unwrap().parse().unwrap();
 //!
 //!     if denominator == 0.0 {
 //!         return Err(Error::DivideByZeroError);
@@ -209,10 +173,11 @@
 //!         .with_version("v0.1.0")
 //!         .with_description("My very cool app")
 //!         .add_command(
-//!             Command::new("divide", divide)
-//!                 .with_parameter(Parameter::new("numerator").set_required(true)?)?
-//!                 .with_parameter(Parameter::new("denominator").set_required(true)?)?
-//!                 .with_help("Divide two numbers"),
+//!             Command::new("divide")
+//!                 .arg(Arg::new("numerator").required(true))
+//!                 .arg(Arg::new("denominator").required(true))
+//!                 .about("Divide two numbers"),
+//!             divide
 //!     );
 //!     Ok(repl.run()?)
 //! }
@@ -222,27 +187,20 @@
 mod command;
 mod completer;
 mod error;
-mod help;
-mod parameter;
 mod prompt;
 mod repl;
-mod value;
 
+pub use clap;
 pub use command::Command;
 pub use error::{Error, Result};
 #[doc(inline)]
-pub use help::{HelpContext, HelpEntry, HelpViewer};
-pub use parameter::Parameter;
-#[doc(inline)]
 pub use repl::Repl;
-#[doc(inline)]
-pub use value::{Convert, Value};
 
-use std::collections::HashMap;
+use clap::ArgMatches;
 
 /// Command callback function signature
 pub type Callback<Context, Error> =
-    fn(HashMap<String, Value>, &mut Context) -> std::result::Result<Option<String>, Error>;
+    fn(&ArgMatches, &mut Context) -> std::result::Result<Option<String>, Error>;
 
 /// Initialize the name, version and description of the Repl from your crate name, version and
 /// description

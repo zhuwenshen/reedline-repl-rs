@@ -1,8 +1,9 @@
 extern crate reedline_repl_rs;
 
-use reedline_repl_rs::{Command, Parameter, Result, Value};
-use reedline_repl_rs::{Convert, Repl};
-use std::collections::{HashMap, VecDeque};
+use clap::{Arg, ArgMatches, Command};
+use reedline_repl_rs::Repl;
+use reedline_repl_rs::Result;
+use std::collections::VecDeque;
 
 /// Example using Repl with Context
 
@@ -12,8 +13,8 @@ struct Context {
 }
 
 // Append name to list
-fn append(args: HashMap<String, Value>, context: &mut Context) -> Result<Option<String>> {
-    let name: String = args["name"].convert()?;
+fn append(args: &ArgMatches, context: &mut Context) -> Result<Option<String>> {
+    let name: String = args.value_of("name").unwrap().to_string();
     context.list.push_back(name);
     let list: Vec<String> = context.list.clone().into();
 
@@ -21,8 +22,8 @@ fn append(args: HashMap<String, Value>, context: &mut Context) -> Result<Option<
 }
 
 // Prepend name to list
-fn prepend(args: HashMap<String, Value>, context: &mut Context) -> Result<Option<String>> {
-    let name: String = args["name"].convert()?;
+fn prepend(args: &ArgMatches, context: &mut Context) -> Result<Option<String>> {
+    let name: String = args.value_of("name").unwrap().to_string();
     context.list.push_front(name);
     let list: Vec<String> = context.list.clone().into();
 
@@ -35,14 +36,16 @@ fn main() -> Result<()> {
         .with_version("v0.1.0")
         .with_description("My very cool app")
         .add_command(
-            Command::new("append", append)
-                .with_parameter(Parameter::new("name").set_required(true)?)?
-                .with_help("Append name to end of list"),
+            Command::new("append")
+                .arg(Arg::new("name").required(true))
+                .about("Append name to end of list"),
+            append,
         )
         .add_command(
-            Command::new("prepend", prepend)
-                .with_parameter(Parameter::new("name").set_required(true)?)?
-                .with_help("Prepend name to front of list"),
+            Command::new("prepend")
+                .arg(Arg::new("name").required(true))
+                .about("Prepend name to front of list"),
+            prepend,
         );
     repl.run()
 }

@@ -1,65 +1,72 @@
-use crate::{Command, Parameter};
+use crate::Command;
 use reedline::{Completer, Span, Suggestion};
 use std::collections::HashMap;
 
-struct CompleterCommand {
-    pub(crate) name: String,
-    pub(crate) parameters: Vec<Parameter>,
-    pub(crate) help_summary: Option<String>,
-}
-
-impl CompleterCommand {
-    pub fn new<Context, E>(command: &Command<Context, E>) -> Self {
-        CompleterCommand {
-            name: command.name.clone(),
-            parameters: command.parameters.clone(),
-            help_summary: command.help_summary.clone(),
-        }
-    }
-
-    pub fn parameter_values_starting_with(
-        &self,
-        idx: usize,
-        prefix: &str,
-        start: usize,
-        pos: usize,
-    ) -> Vec<Suggestion> {
-        if let Some(parameter) = self.parameters.get(idx) {
-            parameter
-                .allowed_values
-                .keys()
-                .filter(|value| value.starts_with(prefix))
-                .map(|value| Suggestion {
-                    value: value.clone(),
-                    description: parameter
-                        .allowed_values
-                        .get(value)
-                        .unwrap()
-                        .as_ref()
-                        .map(|s| s.to_string()),
-                    extra: None,
-                    span: Span::new(start, pos),
-                    // span: Default::default(),
-                    append_whitespace: idx < self.parameters.len(),
-                })
-                .collect()
-        } else {
-            vec![]
-        }
-    }
-}
-
 pub struct ReplCompleter {
-    commands: HashMap<String, CompleterCommand>,
+    commands: HashMap<String, clap::Command<'static>>,
 }
 
 impl ReplCompleter {
     pub fn new<Context, E>(repl_commands: &HashMap<String, Command<Context, E>>) -> Self {
         let mut commands = HashMap::new();
         for (name, repl_command) in repl_commands.iter() {
-            commands.insert(name.clone(), CompleterCommand::new(repl_command));
+            commands.insert(name.clone(), repl_command.clap_command.clone());
         }
         ReplCompleter { commands }
+    }
+
+    pub fn parameter_values_starting_with(
+        &self,
+        command: &clap::Command<'static>,
+        _parameter_idx: usize,
+        prefix: &str,
+        start: usize,
+        pos: usize,
+    ) -> Vec<Suggestion> {
+        let mut completions = vec![];
+        for arg in command.get_arguments() {
+            if let Some(possible_values) = arg.get_possible_values() {
+                completions.extend(
+                    possible_values
+                        .iter()
+                        .filter(|value| value.get_name().starts_with(prefix))
+                        .map(|value| Suggestion {
+                            value: value.get_name().to_string(),
+                            description: value.get_help().map(|n| n.to_string()),
+                            extra: None,
+                            span: Span::new(start, pos),
+                            append_whitespace: true,
+                        }),
+                );
+            }
+
+            if let Some(long) = arg.get_long() {
+                let value = "--".to_string() + long;
+                if value.starts_with(prefix) {
+                    completions.push(Suggestion {
+                        value,
+                        description: arg.get_help().map(|n| n.to_string()),
+                        extra: None,
+                        span: Span::new(start, pos),
+                        append_whitespace: true,
+                    });
+                }
+            }
+
+            if let Some(short) = arg.get_short() {
+                let value = "-".to_string() + &short.to_string();
+                if value.starts_with(prefix) {
+                    completions.push(Suggestion {
+                        value,
+                        description: arg.get_help().map(|n| n.to_string()),
+                        extra: None,
+                        span: Span::new(start, pos),
+                        append_whitespace: true,
+                    });
+                }
+            }
+        }
+        completions
     }
 
     fn commands_starting_with(&self, prefix: &str, pos: usize) -> Vec<Suggestion> {
@@ -68,12 +75,14 @@ impl ReplCompleter {
             .iter()
             .filter(|(key, _)| key.starts_with(prefix))
             .map(|(_, command)| Suggestion {
-                value: command.name.clone(),
-                description: command.help_summary.clone(),
+                value: command.get_name().to_string(),
+                description: command.get_about().map(|n| n.to_string()),
                 extra: None,
                 span: Span::new(0, pos),
                 // span: Default::default(),
-                append_whitespace: !command.parameters.is_empty(),
+                // TODO
+                // append_whitespace: !command.parameters.is_empty(),
+                append_whitespace: true,
             })
             .collect();
 
@@ -101,7 +110,7 @@ impl Completer for ReplCompleter {
             if let Some(command) = self.commands.get(first) {
                 let last = splitted.next().unwrap();
                 let start = line.len() - last.len();
-                command.parameter_values_starting_with(splitted.count(), last, start, pos)
+                self.parameter_values_starting_with(command, splitted.count(), last, start, pos)
             } else {
                 vec![]
             }

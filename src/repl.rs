@@ -1,9 +1,8 @@
 use crate::completer::ReplCompleter;
 use crate::error::*;
-use crate::help::{DefaultHelpViewer, HelpContext, HelpEntry, HelpViewer};
 use crate::prompt::SimplePrompt;
-use crate::Value;
-use crate::{Command, Parameter};
+use crate::Callback;
+use crate::Command;
 use crossterm::event::{KeyCode, KeyModifiers};
 use nu_ansi_term::{Color, Style};
 use reedline::{
@@ -34,8 +33,6 @@ pub struct Repl<Context, E: Display> {
     commands: HashMap<String, Command<Context, E>>,
     history: Option<PathBuf>,
     context: Context,
-    help_context: Option<HelpContext>,
-    help_viewer: Box<dyn HelpViewer>,
     error_handler: ErrorHandler<Context, E>,
 }
 
@@ -57,8 +54,6 @@ where
             commands: HashMap::new(),
             history: None,
             context,
-            help_context: None,
-            help_viewer: Box::new(DefaultHelpViewer::new()),
             error_handler: default_error_handler,
         }
     }
@@ -110,13 +105,6 @@ where
         self
     }
 
-    /// Pass in a custom help viewer
-    pub fn with_help_viewer<V: 'static + HelpViewer>(mut self, help_viewer: V) -> Self {
-        self.help_viewer = Box::new(help_viewer);
-
-        self
-    }
-
     /// Pass in a custom error handler. This is really only for testing - the default
     /// error handler simply prints the error to stderr and then returns
     pub fn with_error_handler(mut self, handler: ErrorHandler<Context, E>) -> Self {
@@ -126,49 +114,73 @@ where
     }
 
     /// Add a command to your REPL
-    pub fn add_command(mut self, command: Command<Context, E>) -> Self {
-        self.commands.insert(command.name.clone(), command);
-
+    pub fn add_command(
+        mut self,
+        command: clap::Command<'static>,
+        callback: Callback<Context, E>,
+    ) -> Self {
+        let name = command.get_name().to_string();
+        self.commands
+            .insert(name.clone(), Command::new(&name, command, callback));
         self
     }
 
-    fn validate_arguments(
-        &self,
-        command: &str,
-        parameters: &[Parameter],
-        args: &[&str],
-    ) -> Result<HashMap<String, Value>> {
-        if args.len() > parameters.len() {
-            return Err(Error::TooManyArguments(command.into(), parameters.len()));
-        }
+    fn show_help(&self, args: &[&str]) -> Result<()> {
+        if args.is_empty() {
+            let mut app = clap::Command::new("app");
 
-        let mut validated = HashMap::new();
-        for (index, parameter) in parameters.iter().enumerate() {
-            if index < args.len() {
-                validated.insert(parameter.name.clone(), Value::new(args[index]));
-            } else if parameter.required {
-                return Err(Error::MissingRequiredArgument(
-                    command.into(),
-                    parameter.name.clone(),
-                ));
-            } else if parameter.default.is_some() {
-                validated.insert(
-                    parameter.name.clone(),
-                    Value::new(&parameter.default.clone().unwrap()),
-                );
+            for (_, com) in self.commands.iter() {
+                app = app.subcommand(com.clap_command.clone());
             }
+            let mut help_bytes: Vec<u8> = Vec::new();
+            app.write_help(&mut help_bytes)
+                .expect("failed to print help");
+            let mut help_string =
+                String::from_utf8(help_bytes).expect("Help message was invalid UTF8");
+            let marker = "SUBCOMMANDS:";
+            if let Some(marker_pos) = help_string.find(marker) {
+                help_string = "COMMANDS:".to_string()
+                    + &help_string[(marker_pos + marker.len())..help_string.len()];
+            }
+            let header = format!("{} {}: {}", self.name, self.version, self.description);
+            let underline = Paint::new(" ".repeat(header.len())).strikethrough();
+            println!("{}", header);
+            println!("{}", underline);
+            println!("{}", help_string);
+        } else if let Some((_, subcommand)) = self
+            .commands
+            .iter()
+            .find(|(name, _)| name.as_str() == args[0])
+        {
+            subcommand
+                .clap_command
+                .clone()
+                .print_help()
+                .expect("failed to print help");
+        } else {
+            eprintln!("Help not found for command '{}'", args[0]);
         }
-        Ok(validated)
+        Ok(())
     }
 
     fn handle_command(&mut self, command: &str, args: &[&str]) -> core::result::Result<(), E> {
         match self.commands.get(command) {
             Some(definition) => {
-                let validated = self.validate_arguments(command, &definition.parameters, args)?;
-                match (definition.callback)(validated, &mut self.context) {
-                    Ok(Some(value)) => println!("{}", value),
-                    Ok(None) => (),
-                    Err(error) => return Err(error),
+                let mut argv: Vec<&str> = vec![command];
+                argv.extend(args);
+                match definition
+                    .clap_command
+                    .clone()
+                    .try_get_matches_from_mut(argv)
+                {
+                    Ok(matches) => match (definition.callback)(&matches, &mut self.context) {
+                        Ok(Some(value)) => println!("{}", value),
+                        Ok(None) => (),
+                        Err(error) => return Err(error),
+                    },
+                    Err(err) => {
+                        err.print().expect("failed to print");
+                    }
                 };
             }
             None => {
@@ -180,28 +192,6 @@ where
             }
         }
 
-        Ok(())
-    }
-
-    fn show_help(&self, args: &[&str]) -> Result<()> {
-        if args.is_empty() {
-            self.help_viewer
-                .help_general(self.help_context.as_ref().unwrap())?;
-        } else {
-            let entry_opt = self
-                .help_context
-                .as_ref()
-                .unwrap()
-                .help_entries
-                .iter()
-                .find(|entry| entry.command == args[0]);
-            match entry_opt {
-                Some(entry) => {
-                    self.help_viewer.help_command(entry)?;
-                }
-                None => eprintln!("Help not found for command '{}'", args[0]),
-            };
-        }
         Ok(())
     }
 
@@ -223,30 +213,8 @@ where
         Ok(())
     }
 
-    fn construct_help_context(&mut self) {
-        let mut help_entries = self
-            .commands
-            .iter()
-            .map(|(_, definition)| {
-                HelpEntry::new(
-                    &definition.name,
-                    &definition.parameters,
-                    &definition.help_summary,
-                )
-            })
-            .collect::<Vec<HelpEntry>>();
-        help_entries.sort_by_key(|d| d.command.clone());
-        self.help_context = Some(HelpContext::new(
-            &self.name,
-            &self.version,
-            &self.description,
-            help_entries,
-        ));
-    }
-
     pub fn run(&mut self) -> Result<()> {
         enable_virtual_terminal_processing();
-        self.construct_help_context();
         if let Some(banner) = &self.banner {
             println!("{}", banner);
         }
@@ -287,63 +255,17 @@ where
             let sig = line_editor.read_line(&prompt).unwrap();
             match sig {
                 Signal::Success(line) => {
-                    self.process_line(line).unwrap();
+                    if let Err(err) = self.process_line(line) {
+                        eprintln!("{}", err);
+                    }
                 }
-                Signal::CtrlD | Signal::CtrlC => {
-                    println!("\nquitting...");
+                Signal::CtrlC => {}
+                Signal::CtrlD => {
                     break;
                 }
             }
         }
         disable_virtual_terminal_processing();
-        Ok(())
-    }
-}
-
-#[cfg(unix)]
-#[cfg(test)]
-mod tests {
-    use crate::error::*;
-    use crate::repl::Repl;
-    use crate::{initialize_repl, Value};
-    use crate::{Command, Parameter};
-    use clap::{crate_description, crate_name, crate_version};
-    use std::collections::HashMap;
-
-    fn foo<T>(args: HashMap<String, Value>, _context: &mut T) -> Result<Option<String>> {
-        Ok(Some(format!("foo {:?}", args)))
-    }
-
-    #[test]
-    fn test_initialize_sets_crate_values() -> Result<()> {
-        let repl: Repl<(), Error> = initialize_repl!(());
-
-        assert_eq!(crate_name!(), repl.name);
-        assert_eq!(crate_version!(), repl.version);
-        assert_eq!(crate_description!(), repl.description);
-
-        Ok(())
-    }
-
-    #[test]
-    fn test_no_required_after_optional() -> Result<()> {
-        assert_eq!(
-            Err(Error::IllegalRequiredError("bar".into())),
-            Command::<(), Error>::new("foo", foo)
-                .with_parameter(Parameter::new("baz").set_default("20")?)?
-                .with_parameter(Parameter::new("bar").set_required(true)?)
-        );
-
-        Ok(())
-    }
-
-    #[test]
-    fn test_required_cannot_be_defaulted() -> Result<()> {
-        assert_eq!(
-            Err(Error::IllegalDefaultError("bar".into())),
-            Parameter::new("bar").set_required(true)?.set_default("foo")
-        );
-
         Ok(())
     }
 }
