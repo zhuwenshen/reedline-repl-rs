@@ -1,23 +1,24 @@
-use crate::command::Command;
+use crate::command::ReplCommand;
 use reedline::{Completer, Span, Suggestion};
 use std::collections::HashMap;
+use clap::Command;
 
-pub struct ReplCompleter {
-    commands: HashMap<String, clap::Command<'static>>,
+pub(crate) struct ReplCompleter {
+    commands: HashMap<String, Command<'static>>,
 }
 
 impl ReplCompleter {
-    pub fn new<Context, E>(repl_commands: &HashMap<String, Command<Context, E>>) -> Self {
+    pub fn new<Context, E>(repl_commands: &HashMap<String, ReplCommand<Context, E>>) -> Self {
         let mut commands = HashMap::new();
         for (name, repl_command) in repl_commands.iter() {
-            commands.insert(name.clone(), repl_command.clap_command.clone());
+            commands.insert(name.clone(), repl_command.command.clone());
         }
         ReplCompleter { commands }
     }
 
     pub fn parameter_values_starting_with(
         &self,
-        command: &clap::Command<'static>,
+        command: &Command<'static>,
         _parameter_idx: usize,
         prefix: &str,
         start: usize,

@@ -2,7 +2,7 @@ use crate::completer::ReplCompleter;
 use crate::error::*;
 use crate::prompt::SimplePrompt;
 use crate::Callback;
-use crate::command::Command;
+use crate::command::ReplCommand;
 use crossterm::event::{KeyCode, KeyModifiers};
 use nu_ansi_term::{Color, Style};
 use reedline::{
@@ -30,7 +30,7 @@ pub struct Repl<Context, E: Display> {
     description: String,
     prompt: Box<dyn Display>,
     custom_prompt: bool,
-    commands: HashMap<String, Command<Context, E>>,
+    commands: HashMap<String, ReplCommand<Context, E>>,
     history: Option<PathBuf>,
     context: Context,
     error_handler: ErrorHandler<Context, E>,
@@ -121,7 +121,7 @@ where
     ) -> Self {
         let name = command.get_name().to_string();
         self.commands
-            .insert(name.clone(), Command::new(&name, command, callback));
+            .insert(name.clone(), ReplCommand::new(&name, command, callback));
         self
     }
 
@@ -130,7 +130,7 @@ where
             let mut app = clap::Command::new("app");
 
             for (_, com) in self.commands.iter() {
-                app = app.subcommand(com.clap_command.clone());
+                app = app.subcommand(com.command.clone());
             }
             let mut help_bytes: Vec<u8> = Vec::new();
             app.write_help(&mut help_bytes)
@@ -153,7 +153,7 @@ where
             .find(|(name, _)| name.as_str() == args[0])
         {
             subcommand
-                .clap_command
+                .command
                 .clone()
                 .print_help()
                 .expect("failed to print help");
@@ -169,7 +169,7 @@ where
                 let mut argv: Vec<&str> = vec![command];
                 argv.extend(args);
                 match definition
-                    .clap_command
+                    .command
                     .clone()
                     .try_get_matches_from_mut(argv)
                 {
