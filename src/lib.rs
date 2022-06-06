@@ -5,6 +5,7 @@
 //! ```
 #![doc = include_str!("../examples/hello_world.rs")]
 //! ```
+//!
 //! reedline-repl-rs uses the [builder](https://en.wikipedia.org/wiki/Builder_pattern) pattern extensively.
 //! What these lines are doing is:
 //! - creating a repl with an empty Context (see below)
@@ -38,7 +39,7 @@
 //! - the context is passed to your command callback functions as a mutable reference
 //!
 //! # Help
-//! reedline-repl-rs automatically support for supplying help commands for your REPL via clap.
+//! reedline-repl-rs automatically builds help commands for your REPL with clap.
 //!
 //! ```bash
 //! % myapp
@@ -84,7 +85,10 @@ mod prompt;
 mod repl;
 
 pub use clap;
+pub use crossterm;
+pub use nu_ansi_term;
 pub use reedline;
+
 pub use error::{Error, Result};
 #[doc(inline)]
 pub use repl::Repl;

@@ -1,13 +1,14 @@
+use crate::command::ReplCommand;
 use crate::completer::ReplCompleter;
 use crate::error::*;
 use crate::prompt::SimplePrompt;
 use crate::Callback;
-use crate::command::ReplCommand;
 use crossterm::event::{KeyCode, KeyModifiers};
 use nu_ansi_term::{Color, Style};
 use reedline::{
     default_emacs_keybindings, ColumnarMenu, DefaultHinter, DefaultValidator, Emacs,
-    ExampleHighlighter, FileBackedHistory, Reedline, ReedlineEvent, ReedlineMenu, Signal,
+    ExampleHighlighter, FileBackedHistory, Keybindings, Reedline, ReedlineEvent, ReedlineMenu,
+    Signal,
 };
 use std::boxed::Box;
 use std::collections::HashMap;
@@ -32,7 +33,13 @@ pub struct Repl<Context, E: Display> {
     custom_prompt: bool,
     commands: HashMap<String, ReplCommand<Context, E>>,
     history: Option<PathBuf>,
+    history_capacity: Option<usize>,
     context: Context,
+    keybindings: Keybindings,
+    hinter_style: Style,
+    hinter_enabled: bool,
+    quick_completions: bool,
+    partial_completions: bool,
     error_handler: ErrorHandler<Context, E>,
 }
 
@@ -43,6 +50,13 @@ where
     /// Create a new Repl with the given context's initial value.
     pub fn new(context: Context) -> Self {
         let name = String::new();
+        let style = Style::new().italic().fg(Color::LightGray);
+        let mut keybindings = default_emacs_keybindings();
+        keybindings.add_binding(
+            KeyModifiers::NONE,
+            KeyCode::Tab,
+            ReedlineEvent::Menu("completion_menu".to_string()),
+        );
 
         Self {
             name: name.clone(),
@@ -53,7 +67,13 @@ where
             custom_prompt: false,
             commands: HashMap::new(),
             history: None,
+            history_capacity: None,
+            quick_completions: true,
+            partial_completions: false,
+            hinter_enabled: true,
+            hinter_style: style,
             context,
+            keybindings,
             error_handler: default_error_handler,
         }
     }
@@ -90,8 +110,9 @@ where
     }
 
     /// Give your Repl a file based history saved at history_path
-    pub fn with_history(mut self, history_path: PathBuf) -> Self {
+    pub fn with_history(mut self, history_path: PathBuf, capacity: usize) -> Self {
         self.history = Some(history_path);
+        self.history_capacity = Some(capacity);
 
         self
     }
@@ -111,6 +132,50 @@ where
         self.error_handler = handler;
 
         self
+    }
+
+    /// Turn on quick completions. These completions will auto-select if the completer
+    /// ever narrows down to a single entry.
+    pub fn with_quick_completions(mut self, quick_completions: bool) -> Self {
+        self.quick_completions = quick_completions;
+
+        self
+    }
+
+    /// Turn on partial completions. These completions will fill the buffer with the
+    /// smallest common string from all the options
+    pub fn with_partial_completions(mut self, partial_completions: bool) -> Self {
+        self.partial_completions = partial_completions;
+
+        self
+    }
+
+    /// Sets the style for reedline's fish-style history autosuggestions
+    ///
+    /// Default: `nu_ansi_term::Style::new().italic().fg(nu_ansi_term::Color::LightGray)`
+    ///
+    pub fn with_hinter_style(&mut self, style: Style) {
+        self.hinter_style = style;
+    }
+
+    /// Disables reedline's fish-style history autosuggestions
+    ///
+    pub fn disable_hinter(&mut self) {
+        self.hinter_enabled = false;
+    }
+
+    /// Adds a reedline keybinding
+    ///
+    /// # Panics
+    ///
+    /// If `comamnd` is an empty [`ReedlineEvent::UntilFound`]
+    pub fn add_binding(
+        &mut self,
+        modifier: KeyModifiers,
+        key_code: KeyCode,
+        command: ReedlineEvent,
+    ) {
+        self.keybindings.add_binding(modifier, key_code, command);
     }
 
     /// Add a command to your REPL
@@ -168,11 +233,7 @@ where
             Some(definition) => {
                 let mut argv: Vec<&str> = vec![command];
                 argv.extend(args);
-                match definition
-                    .command
-                    .clone()
-                    .try_get_matches_from_mut(argv)
-                {
+                match definition.command.clone().try_get_matches_from_mut(argv) {
                     Ok(matches) => match (definition.callback)(&matches, &mut self.context) {
                         Ok(Some(value)) => println!("{}", value),
                         Ok(None) => (),
@@ -227,27 +288,26 @@ where
         commands.push("help".to_string());
         let completer = Box::new(ReplCompleter::new(&self.commands));
         let completion_menu = Box::new(ColumnarMenu::default().with_name("completion_menu"));
-        let mut keybindings = default_emacs_keybindings();
-        keybindings.add_binding(
-            KeyModifiers::NONE,
-            KeyCode::Tab,
-            ReedlineEvent::Menu("completion_menu".to_string()),
-        );
         let validator = Box::new(DefaultValidator);
         let mut line_editor = Reedline::create()
-            .with_edit_mode(Box::new(Emacs::new(keybindings)))
+            .with_edit_mode(Box::new(Emacs::new(self.keybindings.clone())))
             .with_completer(completer)
             .with_menu(ReedlineMenu::EngineCompleter(completion_menu))
-            .with_hinter(Box::new(
-                DefaultHinter::default().with_style(Style::new().italic().fg(Color::LightGray)),
-            ))
             .with_highlighter(Box::new(ExampleHighlighter::new(commands.clone())))
             .with_validator(validator)
-            .with_partial_completions(true)
-            .with_quick_completions(false);
+            .with_partial_completions(self.partial_completions)
+            .with_quick_completions(self.quick_completions);
+
+        if self.hinter_enabled {
+            line_editor = line_editor.with_hinter(Box::new(
+                DefaultHinter::default().with_style(self.hinter_style),
+            ));
+        }
 
         if let Some(history_path) = &self.history {
-            let history = FileBackedHistory::with_file(25, history_path.to_path_buf()).unwrap();
+            let capacity = self.history_capacity.unwrap();
+            let history =
+                FileBackedHistory::with_file(capacity, history_path.to_path_buf()).unwrap();
             line_editor = line_editor.with_history(Box::new(history));
         }
 

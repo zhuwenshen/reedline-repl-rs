@@ -1,6 +1,6 @@
 use crate::Callback;
-use std::fmt;
 use clap::Command;
+use std::fmt;
 
 /// Struct to define a command in the REPL
 
@@ -24,11 +24,7 @@ impl<Context, E> PartialEq for ReplCommand<Context, E> {
 
 impl<Context, E> ReplCommand<Context, E> {
     /// Create a new command with the given name and callback function
-    pub fn new(
-        name: &str,
-        command: Command<'static>,
-        callback: Callback<Context, E>,
-    ) -> Self {
+    pub fn new(name: &str, command: Command<'static>, callback: Callback<Context, E>) -> Self {
         Self {
             name: name.to_string(),
             command,

@@ -10,8 +10,9 @@ Features:
 - Uses [Clap](https://github.com/clap-rs/clap) to define commands and arguments
 - Interactive tab-completion
 - Fish-style history autosuggestions
-- Syntax highlighting 
-- (optional) file based command History
+- Command Syntax highlighting 
+- (optional) File-based command History
+- Clear input with `CTRL+C`, exit repl with `CTRL+D`
 
 Basic example code:
 

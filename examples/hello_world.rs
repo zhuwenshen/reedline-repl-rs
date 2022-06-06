@@ -1,5 +1,5 @@
-use reedline_repl_rs::{Repl, Result};
 use clap::{Arg, ArgMatches, Command};
+use reedline_repl_rs::{Repl, Result};
 
 // Write "Hello" with given name
 fn hello<T>(args: &ArgMatches, _context: &mut T) -> Result<Option<String>> {
@@ -19,7 +19,7 @@ fn main() -> Result<()> {
             Command::new("hello")
                 .arg(Arg::new("who").required(true))
                 .about("Greetings!"),
-            hello
+            hello,
         );
     repl.run()
 }
