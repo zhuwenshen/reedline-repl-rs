@@ -28,8 +28,8 @@ jobs:
     - name: 🚧 Build
       run: cargo build --verbose
 
-    - name: 🚧 Build with tokio feature
-      run: cargo build --features tokio --verbose
+    - name: 🚧 Build with async feature
+      run: cargo build --features async --verbose
 
     - name: ✅ Run tests
-      run: cargo test --lib --verbose
+      run: cargo test --verbose

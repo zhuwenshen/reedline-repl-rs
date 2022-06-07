@@ -1,6 +1,6 @@
 [package]
 name = "reedline-repl-rs"
-version = "0.3.0"
+version = "0.3.1"
 authors = ["Artur Hallmann <arturh@arturh.de>", "Jack Lund <jackl@geekheads.net>"]
 description = "Library to generate a fancy REPL for your application based on reedline and clap"
 license = "MIT"
@@ -22,7 +22,7 @@ clap = "3"
 yansi = "0.5.1"
 
 [dev-dependencies]
-tokio = { version = "1" } # for async example
+tokio = { version = "1", features = ["macros", "rt-multi-thread"] } # for async example
 
 [target.'cfg(windows)'.dependencies]
 winapi-util = "0.1.5"
@@ -37,7 +37,7 @@ macro = ["clap/cargo"]
 
 [[example]]
 name = "async"
-required-features = ["async", "tokio/macros", "tokio/rt-multi-thread"]
+required-features = ["async"]
 
 [[example]]
 name = "macro"

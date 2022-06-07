@@ -2,7 +2,7 @@
 //! for Rust
 //!
 //! # Example
-//! ```
+//! ```rust,no_run
 #![doc = include_str!("../examples/hello_world.rs")]
 //! ```
 //!
@@ -30,7 +30,7 @@
 //! # Context
 //!
 //! The `Context` type is used to keep state between REPL calls. Here's an example:
-//! ```
+//! ```rust,no_run
 #![doc = include_str!("../examples/with_context.rs")]
 //! ```
 //! A few things to note:
@@ -41,8 +41,8 @@
 //!
 //! # Async Support
 //!
-//! The `tokio` feature enables async variants and allows you to write sync REPL's
-//! ```
+//! The `async` feature allows you to write async REPL code:
+//! ```rust,ignore
 #![doc = include_str!("../examples/async.rs")]
 //! ```
 //! A few things to note:
@@ -84,7 +84,7 @@
 //! This makes error handling in your command functions easier, since you can just allow whatever
 //! errors your functions emit bubble up.
 //!
-//! ```
+//! ```rust,no_run
 #![doc = include_str!("../examples/custom_error.rs")]
 //! ```
 

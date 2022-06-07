@@ -7,12 +7,12 @@ Library to help you create a fancy [REPL](https://en.wikipedia.org/wiki/Read%E2%
 [![Documentation](https://docs.rs/reedline-repl-rs/badge.svg)](https://docs.rs/reedline-repl-rs/latest/)
 
 Features:
-- Uses [Clap](https://github.com/clap-rs/clap) to define commands and arguments
+- Uses [clap](https://github.com/clap-rs/clap) to define commands and arguments
 - Interactive tab-completion
 - Fish-style history autosuggestions
 - Command Syntax highlighting 
-- (optional) File-based command History
-- (optional) Feature-Flag for 
+- optional File-based command History
+- Feature-Flag for async support
 - Clear input with `CTRL+C`, exit repl with `CTRL+D`
 
 Basic example code:

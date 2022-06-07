@@ -424,7 +424,7 @@ where
         Ok(())
     }
 
-    pub fn build_reedline(&mut self) -> Result<Reedline> {
+    fn build_reedline(&mut self) -> Result<Reedline> {
         let mut commands: Vec<String> = self
             .commands
             .iter()
