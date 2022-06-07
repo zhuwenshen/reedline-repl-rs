@@ -29,7 +29,7 @@ impl fmt::Display for CustomError {
 impl std::error::Error for CustomError {}
 
 // Do nothing, unsuccesfully
-fn hello<T>(_args: &ArgMatches, _context: &mut T) -> Result<Option<String>, CustomError> {
+fn hello<T>(_args: ArgMatches, _context: &mut T) -> Result<Option<String>, CustomError> {
     Err(CustomError::StringError("Returning an error".to_string()))
 }
 

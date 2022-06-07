@@ -37,6 +37,16 @@
 //! - you pass in the initial value for your Context struct to the call to
 //! [Repl::new()](struct.Repl.html#method.new)
 //! - the context is passed to your command callback functions as a mutable reference
+//! - the prompt can be changed after each executed commmand using with_on_after_command as shown
+//!
+//! # Async Support
+//!
+//! The `tokio` feature enables async variants and allows you to write sync REPL's
+//! ```
+#![doc = include_str!("../examples/async.rs")]
+//! ```
+//! A few things to note:
+//! - The ugly Pin::Box workaround is required because of unstable rust async Fn's  
 //!
 //! # Help
 //! reedline-repl-rs automatically builds help commands for your REPL with clap.
@@ -85,40 +95,60 @@ mod prompt;
 mod repl;
 
 pub use clap;
+use clap::ArgMatches;
 pub use crossterm;
+pub use error::{Error, Result};
 pub use nu_ansi_term;
 pub use reedline;
-pub use yansi;
-
-pub use error::{Error, Result};
 #[doc(inline)]
 pub use repl::Repl;
-
-use clap::ArgMatches;
+#[cfg(feature = "async")]
+use std::{future::Future, pin::Pin};
+pub use yansi;
 use yansi::Paint;
 
 /// Command callback function signature
 pub type Callback<Context, Error> =
-    fn(&ArgMatches, &mut Context) -> std::result::Result<Option<String>, Error>;
+    fn(ArgMatches, &mut Context) -> std::result::Result<Option<String>, Error>;
+
+#[cfg(feature = "async")]
+pub type AsyncCallback<Context, Error> =
+    fn(
+        ArgMatches,
+        &'_ mut Context,
+    ) -> Pin<Box<dyn Future<Output = std::result::Result<Option<String>, Error>> + '_>>;
 
 /// AfterCommand callback function signature
 pub type AfterCommandCallback<Context, Error> =
     fn(&mut Context) -> std::result::Result<Option<String>, Error>;
+
+#[cfg(feature = "async")]
+pub type AsyncAfterCommandCallback<Context, Error> =
+    fn(
+        &'_ mut Context,
+    ) -> Pin<Box<dyn Future<Output = std::result::Result<Option<String>, Error>> + '_>>;
 
 /// Utility to format prompt strings as green and bold. Use yansi directly instead for custom colors.
 pub fn paint_green_bold(input: &str) -> String {
     Box::new(Paint::green(input).bold()).to_string()
 }
 
+/// Utility to format prompt strings as yellow and bold. Use yansi directly instead for custom colors.
+pub fn paint_yellow_bold(input: &str) -> String {
+    Box::new(Paint::yellow(input).bold()).to_string()
+}
+
 /// Initialize the name, version and description of the Repl from your crate name, version and
 /// description
+
 #[macro_export]
+#[cfg(feature = "macro")]
 macro_rules! initialize_repl {
     ($context: expr) => {{
         let repl = Repl::new($context)
-            .with_name(crate_name!())
-            .with_version(crate_version!())
-            .with_description(crate_description!());
+            .with_name(clap::crate_name!())
+            .with_version(clap::crate_version!())
+            .with_description(clap::crate_description!());
 
         repl
     }};

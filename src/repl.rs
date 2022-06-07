@@ -2,7 +2,10 @@ use crate::command::ReplCommand;
 use crate::completer::ReplCompleter;
 use crate::error::*;
 use crate::prompt::ReplPrompt;
-use crate::{paint_green_bold, AfterCommandCallback, Callback};
+use crate::{paint_green_bold, paint_yellow_bold, AfterCommandCallback, Callback};
+#[cfg(feature = "async")]
+use crate::{AsyncAfterCommandCallback, AsyncCallback};
+use clap::Command;
 use crossterm::event::{KeyCode, KeyModifiers};
 use nu_ansi_term::{Color, Style};
 use reedline::{
@@ -14,7 +17,6 @@ use std::boxed::Box;
 use std::collections::HashMap;
 use std::fmt::Display;
 use std::path::PathBuf;
-use yansi::Paint;
 
 type ErrorHandler<Context, E> = fn(error: E, repl: &Repl<Context, E>) -> Result<()>;
 
@@ -31,6 +33,8 @@ pub struct Repl<Context, E: Display> {
     description: String,
     prompt: ReplPrompt,
     after_command_callback: Option<AfterCommandCallback<Context, E>>,
+    #[cfg(feature = "async")]
+    after_command_callback_async: Option<AsyncAfterCommandCallback<Context, E>>,
     commands: HashMap<String, ReplCommand<Context, E>>,
     history: Option<PathBuf>,
     history_capacity: Option<usize>,
@@ -68,6 +72,8 @@ where
             history: None,
             history_capacity: None,
             after_command_callback: None,
+            #[cfg(feature = "async")]
+            after_command_callback_async: None,
             quick_completions: true,
             partial_completions: false,
             hinter_enabled: true,
@@ -109,6 +115,17 @@ where
     /// Give your REPL a callback which is called after every command and may update the prompt
     pub fn with_on_after_command(mut self, callback: AfterCommandCallback<Context, E>) -> Self {
         self.after_command_callback = Some(callback);
+
+        self
+    }
+
+    /// Give your REPL a callback which is called after every command and may update the prompt
+    #[cfg(feature = "async")]
+    pub fn with_on_after_command_async(
+        mut self,
+        callback: AsyncAfterCommandCallback<Context, E>,
+    ) -> Self {
+        self.after_command_callback_async = Some(callback);
 
         self
     }
@@ -195,7 +212,7 @@ where
     /// Add a command to your REPL
     pub fn add_command(
         mut self,
-        command: clap::Command<'static>,
+        command: Command<'static>,
         callback: Callback<Context, E>,
     ) -> Self {
         let name = command.get_name().to_string();
@@ -204,9 +221,24 @@ where
         self
     }
 
+    /// Add a command to your REPL
+    #[cfg(feature = "async")]
+    pub fn add_command_async(
+        mut self,
+        command: Command<'static>,
+        callback: AsyncCallback<Context, E>,
+    ) -> Self {
+        let name = command.get_name().to_string();
+        self.commands.insert(
+            name.clone(),
+            ReplCommand::new_async(&name, command, callback),
+        );
+        self
+    }
+
     fn show_help(&self, args: &[&str]) -> Result<()> {
         if args.is_empty() {
-            let mut app = clap::Command::new("app");
+            let mut app = Command::new("app");
 
             for (_, com) in self.commands.iter() {
                 app = app.subcommand(com.command.clone());
@@ -218,13 +250,16 @@ where
                 String::from_utf8(help_bytes).expect("Help message was invalid UTF8");
             let marker = "SUBCOMMANDS:";
             if let Some(marker_pos) = help_string.find(marker) {
-                help_string = "COMMANDS:".to_string()
+                help_string = paint_yellow_bold("COMMANDS:")
                     + &help_string[(marker_pos + marker.len())..help_string.len()];
             }
-            let header = format!("{} {}: {}", self.name, self.version, self.description);
-            let underline = Paint::new(" ".repeat(header.len())).strikethrough();
+            let header = format!(
+                "{} {}\n{}\n",
+                paint_green_bold(&self.name),
+                self.version,
+                self.description
+            );
             println!("{}", header);
-            println!("{}", underline);
             println!("{}", help_string);
         } else if let Some((_, subcommand)) = self
             .commands
@@ -248,7 +283,11 @@ where
                 let mut argv: Vec<&str> = vec![command];
                 argv.extend(args);
                 match definition.command.clone().try_get_matches_from_mut(argv) {
-                    Ok(matches) => match (definition.callback)(&matches, &mut self.context) {
+                    Ok(matches) => match (definition
+                        .callback
+                        .expect("Must be filled for sync commands"))(
+                        matches, &mut self.context
+                    ) {
                         Ok(Some(value)) => println!("{}", value),
                         Ok(None) => (),
                         Err(error) => return Err(error),
@@ -257,6 +296,72 @@ where
                         err.print().expect("failed to print");
                     }
                 };
+                if let Some(callback) = self.after_command_callback {
+                    match callback(&mut self.context) {
+                        Ok(new_prompt) => {
+                            if let Some(new_prompt) = new_prompt {
+                                self.prompt.update_prefix(&new_prompt);
+                            }
+                        }
+                        Err(err) => {
+                            eprintln!("failed to execute after_command_callback {:?}", err);
+                        }
+                    }
+                }
+            }
+            None => {
+                if command == "help" {
+                    self.show_help(args)?;
+                } else {
+                    return Err(Error::UnknownCommand(command.to_string()).into());
+                }
+            }
+        }
+
+        Ok(())
+    }
+
+    #[cfg(feature = "async")]
+    async fn handle_command_async(
+        &mut self,
+        command: &str,
+        args: &[&str],
+    ) -> core::result::Result<(), E> {
+        match self.commands.get(command) {
+            Some(definition) => {
+                let mut argv: Vec<&str> = vec![command];
+                argv.extend(args);
+                match definition.command.clone().try_get_matches_from_mut(argv) {
+                    Ok(matches) => match if let Some(async_callback) = definition.async_callback {
+                        async_callback(matches, &mut self.context).await
+                    } else {
+                        definition
+                            .callback
+                            .expect("Either async or sync callback must be set")(
+                            matches,
+                            &mut self.context,
+                        )
+                    } {
+                        Ok(Some(value)) => println!("{}", value),
+                        Ok(None) => (),
+                        Err(error) => return Err(error),
+                    },
+                    Err(err) => {
+                        err.print().expect("failed to print");
+                    }
+                };
+                if let Some(callback) = self.after_command_callback_async {
+                    match callback(&mut self.context).await {
+                        Ok(new_prompt) => {
+                            if let Some(new_prompt) = new_prompt {
+                                self.prompt.update_prefix(&new_prompt);
+                            }
+                        }
+                        Err(err) => {
+                            eprintln!("failed to execute after_command_callback {:?}", err);
+                        }
+                    }
+                }
                 if let Some(callback) = self.after_command_callback {
                     match callback(&mut self.context) {
                         Ok(new_prompt) => {
@@ -300,11 +405,26 @@ where
         Ok(())
     }
 
-    pub fn run(&mut self) -> Result<()> {
-        enable_virtual_terminal_processing();
-        if let Some(banner) = &self.banner {
-            println!("{}", banner);
+    #[cfg(feature = "async")]
+    async fn process_line_async(&mut self, line: String) -> core::result::Result<(), E> {
+        let trimmed = line.trim();
+        if !trimmed.is_empty() {
+            let r = regex::Regex::new(r#"("[^"\n]+"|[\S]+)"#).unwrap();
+            let args = r
+                .captures_iter(trimmed)
+                .map(|a| a[0].to_string().replace('\"', ""))
+                .collect::<Vec<String>>();
+            let mut args = args.iter().fold(vec![], |mut state, a| {
+                state.push(a.as_str());
+                state
+            });
+            let command: String = args.drain(..1).collect();
+            self.handle_command_async(&command, &args).await?;
         }
+        Ok(())
+    }
+
+    pub fn build_reedline(&mut self) -> Result<Reedline> {
         let mut commands: Vec<String> = self
             .commands
             .iter()
@@ -336,6 +456,16 @@ where
             line_editor = line_editor.with_history(Box::new(history));
         }
 
+        Ok(line_editor)
+    }
+
+    pub fn run(&mut self) -> Result<()> {
+        enable_virtual_terminal_processing();
+        if let Some(banner) = &self.banner {
+            println!("{}", banner);
+        }
+        let mut line_editor = self.build_reedline()?;
+
         loop {
             let sig = line_editor
                 .read_line(&self.prompt)
@@ -343,6 +473,34 @@ where
             match sig {
                 Signal::Success(line) => {
                     if let Err(err) = self.process_line(line) {
+                        eprintln!("{}", err);
+                    }
+                }
+                Signal::CtrlC => {}
+                Signal::CtrlD => {
+                    break;
+                }
+            }
+        }
+        disable_virtual_terminal_processing();
+        Ok(())
+    }
+
+    #[cfg(feature = "async")]
+    pub async fn run_async(&mut self) -> Result<()> {
+        enable_virtual_terminal_processing();
+        if let Some(banner) = &self.banner {
+            println!("{}", banner);
+        }
+        let mut line_editor = self.build_reedline()?;
+
+        loop {
+            let sig = line_editor
+                .read_line(&self.prompt)
+                .expect("failed to read_line");
+            match sig {
+                Signal::Success(line) => {
+                    if let Err(err) = self.process_line_async(line).await {
                         eprintln!("{}", err);
                     }
                 }

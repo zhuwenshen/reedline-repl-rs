@@ -13,7 +13,7 @@ struct Context {
 }
 
 // Append name to list
-fn append(args: &ArgMatches, context: &mut Context) -> Result<Option<String>> {
+fn append(args: ArgMatches, context: &mut Context) -> Result<Option<String>> {
     let name: String = args.value_of("name").unwrap().to_string();
     context.list.push_back(name);
     let list: Vec<String> = context.list.clone().into();
@@ -22,7 +22,7 @@ fn append(args: &ArgMatches, context: &mut Context) -> Result<Option<String>> {
 }
 
 // Prepend name to list
-fn prepend(args: &ArgMatches, context: &mut Context) -> Result<Option<String>> {
+fn prepend(args: ArgMatches, context: &mut Context) -> Result<Option<String>> {
     let name: String = args.value_of("name").unwrap().to_string();
     context.list.push_front(name);
     let list: Vec<String> = context.list.clone().into();

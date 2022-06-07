@@ -12,6 +12,7 @@ Features:
 - Fish-style history autosuggestions
 - Command Syntax highlighting 
 - (optional) File-based command History
+- (optional) Feature-Flag for 
 - Clear input with `CTRL+C`, exit repl with `CTRL+D`
 
 Basic example code:
@@ -21,7 +22,7 @@ use reedline_repl_rs::{Repl, Result};
 use clap::{Arg, ArgMatches, Command};
 
 // Write "Hello" with given name
-fn hello<T>(args: &ArgMatches, _context: &mut T) -> Result<Option<String>> {
+fn hello<T>(args: ArgMatches, _context: &mut T) -> Result<Option<String>> {
     Ok(Some(format!("Hello, {}", args.value_of("who").unwrap())))
 }
 

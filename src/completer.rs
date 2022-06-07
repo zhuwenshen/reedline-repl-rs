@@ -59,6 +59,10 @@ impl ReplCompleter {
     ) -> Vec<Suggestion> {
         let mut completions = vec![];
         for arg in command.get_arguments() {
+            // skips --help and --version
+            if arg.is_global_set() {
+                continue;
+            }
             if let Some(possible_values) = arg.get_possible_values() {
                 completions.extend(
                     possible_values
