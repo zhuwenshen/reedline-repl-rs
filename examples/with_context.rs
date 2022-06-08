@@ -31,13 +31,13 @@ fn main() -> Result<()> {
         .with_name("MyList")
         .with_version("v0.1.0")
         .with_description("My very cool List")
-        .add_command(
+        .with_command(
             Command::new("append")
                 .arg(Arg::new("name").required(true))
                 .about("Append name to end of list"),
             append,
         )
-        .add_command(
+        .with_command(
             Command::new("prepend")
                 .arg(Arg::new("name").required(true))
                 .about("Prepend name to front of list"),

@@ -20,14 +20,14 @@ fn main() -> Result<()> {
         .with_name("MyApp")
         .with_version("v0.1.0")
         .with_description("My very cool app")
-        .add_command(
+        .with_command(
             Command::new("add")
                 .arg(Arg::new("first").required(true))
                 .arg(Arg::new("second").required(true))
                 .about("Add two numbers together"),
             add,
         )
-        .add_command(
+        .with_command(
             Command::new("hello")
                 .arg(Arg::new("who").required(true))
                 .about("Greetings!"),

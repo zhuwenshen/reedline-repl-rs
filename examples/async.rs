@@ -17,7 +17,7 @@ async fn main() -> Result<()> {
     let mut repl = Repl::new(())
         .with_name("MyApp")
         .with_version("v0.1.0")
-        .add_command_async(
+        .with_command_async(
             Command::new("hello")
                 .arg(Arg::new("who").required(true))
                 .about("Greetings!"),

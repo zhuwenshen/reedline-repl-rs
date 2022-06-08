@@ -37,7 +37,7 @@ fn main() -> Result<(), reedline_repl_rs::Error> {
         .with_name("MyApp")
         .with_version("v0.1.0")
         .with_description("My very cool app")
-        .add_command(
+        .with_command(
             Command::new("hello").about("Do nothing, unsuccessfully"),
             hello,
         );

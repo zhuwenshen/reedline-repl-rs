@@ -7,13 +7,16 @@ Library to help you create a fancy [REPL](https://en.wikipedia.org/wiki/Read%E2%
 [![Documentation](https://docs.rs/reedline-repl-rs/badge.svg)](https://docs.rs/reedline-repl-rs/latest/)
 
 Features:
-- Uses [clap](https://github.com/clap-rs/clap) to define commands and arguments
-- Interactive tab-completion
-- Fish-style history autosuggestions
+- Popular [clap](https://github.com/clap-rs/clap) crate [Command](https://docs.rs/clap/latest/clap/type.Command.html) used as configuration interface
+- General editing functionality, that should feel familiar coming from other shells (e.g. bash, fish, zsh).
+- Interactive tab-completion with graphical selection menu 
+- Fish-style history autosuggestion hints
+- History with interactive search options (optionally persists to file, can support multiple sessions accessing the same file)
+- Configurable keybindings (default emacs-style bindings).
+- Configurable prompt with hooks to update after commands run
 - Command Syntax highlighting 
-- Optional file-based command History
 - Feature-flag for async support
-- Clear input with `CTRL+C`, exit repl with `CTRL+D`
+- Tip: Search history with `CTRL+R`, clear input with `CTRL+C`, exit repl with `CTRL+D` 
 
 Basic example code:
 
@@ -32,7 +35,7 @@ fn main() -> Result<()> {
         .with_version("v0.1.0")
         .with_description("My very cool app")
         .with_banner("Welcome to MyApp")
-        .add_command(
+        .with_command(
             Command::new("hello")
                 .arg(Arg::new("who").required(true))
                 .about("Greetings!"),

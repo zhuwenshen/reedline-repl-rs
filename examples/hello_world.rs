@@ -13,7 +13,7 @@ fn main() -> Result<()> {
         .with_version("v0.1.0")
         .with_description("My very cool app")
         .with_banner("Welcome to MyApp")
-        .add_command(
+        .with_command(
             Command::new("hello")
                 .arg(Arg::new("who").required(true))
                 .about("Greetings!"),

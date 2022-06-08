@@ -48,8 +48,17 @@
 //! A few things to note:
 //! - The ugly Pin::Box workaround is required because of unstable rust async Fn's  
 //!
+//! # Keybindings
+//!
+//! Per default Emacs-style keybindings are used
+//! ```rust,ignore
+#![doc = include_str!("../examples/async.rs")]
+//! ```
+//! A few things to note:
+//! - The ugly Pin::Box workaround is required because of unstable rust async Fn's  
+//!
 //! # Help
-//! reedline-repl-rs automatically builds help commands for your REPL with clap.
+//! reedline-repl-rs automatically builds help commands for your REPL using clap [print_help](https://docs.rs/clap/latest/clap/struct.App.html#method.print_help):
 //!
 //! ```bash
 //! % myapp
@@ -111,6 +120,7 @@ use yansi::Paint;
 pub type Callback<Context, Error> =
     fn(ArgMatches, &mut Context) -> std::result::Result<Option<String>, Error>;
 
+/// Async Command callback function signature
 #[cfg(feature = "async")]
 pub type AsyncCallback<Context, Error> =
     fn(
@@ -122,6 +132,7 @@ pub type AsyncCallback<Context, Error> =
 pub type AfterCommandCallback<Context, Error> =
     fn(&mut Context) -> std::result::Result<Option<String>, Error>;
 
+/// Async AfterCommand callback function signature
 #[cfg(feature = "async")]
 pub type AsyncAfterCommandCallback<Context, Error> =
     fn(
@@ -138,9 +149,8 @@ pub fn paint_yellow_bold(input: &str) -> String {
     Box::new(Paint::yellow(input).bold()).to_string()
 }
 
-/// Initialize the name, version and description of the Repl from your crate name, version and
-/// description
-
+/// Initialize the name, version and description of the Repl from your
+/// crate name, version and description
 #[macro_export]
 #[cfg(feature = "macro")]
 macro_rules! initialize_repl {

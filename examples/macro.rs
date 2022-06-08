@@ -8,7 +8,7 @@ fn hello<T>(args: ArgMatches, _context: &mut T) -> Result<Option<String>> {
 }
 
 fn main() -> Result<()> {
-    let mut repl = initialize_repl!(()).add_command(
+    let mut repl = initialize_repl!(()).with_command(
         Command::new("hello")
             .arg(Arg::new("who").required(true))
             .about("Greetings!"),

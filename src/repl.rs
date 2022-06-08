@@ -44,6 +44,8 @@ pub struct Repl<Context, E: Display> {
     hinter_enabled: bool,
     quick_completions: bool,
     partial_completions: bool,
+    stop_on_ctrl_c: bool,
+    stop_on_ctrl_d: bool,
     error_handler: ErrorHandler<Context, E>,
 }
 
@@ -81,6 +83,8 @@ where
             prompt,
             context,
             keybindings,
+            stop_on_ctrl_c: false,
+            stop_on_ctrl_d: true,
             error_handler: default_error_handler,
         }
     }
@@ -165,6 +169,20 @@ where
         self
     }
 
+    /// Turn on/off if REPL run is stopped on CTRG+C (Default: false)
+    pub fn with_stop_on_ctrl_c(mut self, stop_on_ctrl_c: bool) -> Self {
+        self.stop_on_ctrl_c = stop_on_ctrl_c;
+
+        self
+    }
+
+    /// Turn on/off if REPL run is stopped on CTRG+D (Default: true)
+    pub fn with_stop_on_ctrl_d(mut self, stop_on_ctrl_d: bool) -> Self {
+        self.stop_on_ctrl_d = stop_on_ctrl_d;
+
+        self
+    }
+
     /// Turn on quick completions. These completions will auto-select if the completer
     /// ever narrows down to a single entry.
     pub fn with_quick_completions(mut self, quick_completions: bool) -> Self {
@@ -185,14 +203,17 @@ where
     ///
     /// Default: `nu_ansi_term::Style::new().italic().fg(nu_ansi_term::Color::LightGray)`
     ///
-    pub fn with_hinter_style(&mut self, style: Style) {
+    pub fn with_hinter_style(mut self, style: Style) -> Self {
         self.hinter_style = style;
+
+        self
     }
 
     /// Disables reedline's fish-style history autosuggestions
-    ///
-    pub fn disable_hinter(&mut self) {
+    pub fn with_hinter_disabled(mut self) -> Self {
         self.hinter_enabled = false;
+
+        self
     }
 
     /// Adds a reedline keybinding
@@ -200,17 +221,47 @@ where
     /// # Panics
     ///
     /// If `comamnd` is an empty [`ReedlineEvent::UntilFound`]
-    pub fn add_binding(
-        &mut self,
+    pub fn with_keybinding(
+        mut self,
         modifier: KeyModifiers,
         key_code: KeyCode,
         command: ReedlineEvent,
-    ) {
+    ) -> Self {
         self.keybindings.add_binding(modifier, key_code, command);
+
+        self
+    }
+
+    /// Find a keybinding based on the modifier and keycode
+    pub fn find_keybinding(
+        &self,
+        modifier: KeyModifiers,
+        key_code: KeyCode,
+    ) -> Option<ReedlineEvent> {
+        self.keybindings.find_binding(modifier, key_code)
+    }
+
+    /// Get assigned keybindings
+    pub fn get_keybindings(&self) -> HashMap<(KeyModifiers, KeyCode), ReedlineEvent> {
+        // keybindings.get_keybindings() cannot be returned directly because KeyCombination is not visible
+        self.keybindings
+            .get_keybindings()
+            .iter()
+            .map(|(key, value)| ((key.modifier, key.key_code), value.clone()))
+            .collect()
+    }
+
+    /// Remove a keybinding
+    ///
+    /// Returns `Some(ReedlineEvent)` if the keycombination was previously bound to a particular [`ReedlineEvent`]
+    pub fn without_keybinding(mut self, modifier: KeyModifiers, key_code: KeyCode) -> Self {
+        self.keybindings.remove_binding(modifier, key_code);
+
+        self
     }
 
     /// Add a command to your REPL
-    pub fn add_command(
+    pub fn with_command(
         mut self,
         command: Command<'static>,
         callback: Callback<Context, E>,
@@ -223,7 +274,7 @@ where
 
     /// Add a command to your REPL
     #[cfg(feature = "async")]
-    pub fn add_command_async(
+    pub fn with_command_async(
         mut self,
         command: Command<'static>,
         callback: AsyncCallback<Context, E>,
@@ -296,24 +347,45 @@ where
                         err.print().expect("failed to print");
                     }
                 };
-                if let Some(callback) = self.after_command_callback {
-                    match callback(&mut self.context) {
-                        Ok(new_prompt) => {
-                            if let Some(new_prompt) = new_prompt {
-                                self.prompt.update_prefix(&new_prompt);
-                            }
-                        }
-                        Err(err) => {
-                            eprintln!("failed to execute after_command_callback {:?}", err);
-                        }
-                    }
-                }
+                self.execute_after_command_callback()?;
             }
             None => {
                 if command == "help" {
                     self.show_help(args)?;
                 } else {
                     return Err(Error::UnknownCommand(command.to_string()).into());
+                }
+            }
+        }
+
+        Ok(())
+    }
+
+    fn execute_after_command_callback(&mut self) -> core::result::Result<(), E> {
+        if let Some(callback) = self.after_command_callback {
+            match callback(&mut self.context) {
+                Ok(Some(new_prompt)) => {
+                    self.prompt.update_prefix(&new_prompt);
+                }
+                Ok(None) => {}
+                Err(err) => {
+                    eprintln!("failed to execute after_command_callback {:?}", err);
+                }
+            }
+        }
+
+        #[cfg(feature = "async")]
+        {
+            if let Some(callback) = self.after_command_callback_async {
+                match callback(&mut self.context).await {
+                    Ok(new_prompt) => {
+                        if let Some(new_prompt) = new_prompt {
+                            self.prompt.update_prefix(&new_prompt);
+                        }
+                    }
+                    Err(err) => {
+                        eprintln!("failed to execute after_command_callback {:?}", err);
+                    }
                 }
             }
         }
@@ -350,30 +422,7 @@ where
                         err.print().expect("failed to print");
                     }
                 };
-                if let Some(callback) = self.after_command_callback_async {
-                    match callback(&mut self.context).await {
-                        Ok(new_prompt) => {
-                            if let Some(new_prompt) = new_prompt {
-                                self.prompt.update_prefix(&new_prompt);
-                            }
-                        }
-                        Err(err) => {
-                            eprintln!("failed to execute after_command_callback {:?}", err);
-                        }
-                    }
-                }
-                if let Some(callback) = self.after_command_callback {
-                    match callback(&mut self.context) {
-                        Ok(new_prompt) => {
-                            if let Some(new_prompt) = new_prompt {
-                                self.prompt.update_prefix(&new_prompt);
-                            }
-                        }
-                        Err(err) => {
-                            eprintln!("failed to execute after_command_callback {:?}", err);
-                        }
-                    }
-                }
+                self.execute_after_command_callback()?;
             }
             None => {
                 if command == "help" {
@@ -387,19 +436,24 @@ where
         Ok(())
     }
 
+    fn parse_line(&self, line: &str) -> (String, Vec<String>) {
+        let r = regex::Regex::new(r#"("[^"\n]+"|[\S]+)"#).unwrap();
+        let mut args = r
+            .captures_iter(line)
+            .map(|a| a[0].to_string().replace('\"', ""))
+            .collect::<Vec<String>>();
+        let command: String = args.drain(..1).collect();
+        (command, args)
+    }
+
     fn process_line(&mut self, line: String) -> core::result::Result<(), E> {
         let trimmed = line.trim();
         if !trimmed.is_empty() {
-            let r = regex::Regex::new(r#"("[^"\n]+"|[\S]+)"#).unwrap();
-            let args = r
-                .captures_iter(trimmed)
-                .map(|a| a[0].to_string().replace('\"', ""))
-                .collect::<Vec<String>>();
-            let mut args = args.iter().fold(vec![], |mut state, a| {
+            let (command, args) = self.parse_line(trimmed);
+            let args = args.iter().fold(vec![], |mut state, a| {
                 state.push(a.as_str());
                 state
             });
-            let command: String = args.drain(..1).collect();
             self.handle_command(&command, &args)?;
         }
         Ok(())
@@ -409,28 +463,23 @@ where
     async fn process_line_async(&mut self, line: String) -> core::result::Result<(), E> {
         let trimmed = line.trim();
         if !trimmed.is_empty() {
-            let r = regex::Regex::new(r#"("[^"\n]+"|[\S]+)"#).unwrap();
-            let args = r
-                .captures_iter(trimmed)
-                .map(|a| a[0].to_string().replace('\"', ""))
-                .collect::<Vec<String>>();
-            let mut args = args.iter().fold(vec![], |mut state, a| {
+            let (command, args) = self.parse_line(trimmed);
+            let args = args.iter().fold(vec![], |mut state, a| {
                 state.push(a.as_str());
                 state
             });
-            let command: String = args.drain(..1).collect();
             self.handle_command_async(&command, &args).await?;
         }
         Ok(())
     }
 
-    fn build_reedline(&mut self) -> Result<Reedline> {
-        let mut commands: Vec<String> = self
+    fn build_line_editor(&mut self) -> Result<Reedline> {
+        let mut valid_commands: Vec<String> = self
             .commands
             .iter()
             .map(|(_, command)| command.name.clone())
             .collect();
-        commands.push("help".to_string());
+        valid_commands.push("help".to_string());
         let completer = Box::new(ReplCompleter::new(&self.commands));
         let completion_menu = Box::new(ColumnarMenu::default().with_name("completion_menu"));
         let validator = Box::new(DefaultValidator);
@@ -438,7 +487,7 @@ where
             .with_edit_mode(Box::new(Emacs::new(self.keybindings.clone())))
             .with_completer(completer)
             .with_menu(ReedlineMenu::EngineCompleter(completion_menu))
-            .with_highlighter(Box::new(ExampleHighlighter::new(commands.clone())))
+            .with_highlighter(Box::new(ExampleHighlighter::new(valid_commands.clone())))
             .with_validator(validator)
             .with_partial_completions(self.partial_completions)
             .with_quick_completions(self.quick_completions);
@@ -459,12 +508,13 @@ where
         Ok(line_editor)
     }
 
+    /// Execute REPL
     pub fn run(&mut self) -> Result<()> {
         enable_virtual_terminal_processing();
         if let Some(banner) = &self.banner {
             println!("{}", banner);
         }
-        let mut line_editor = self.build_reedline()?;
+        let mut line_editor = self.build_line_editor()?;
 
         loop {
             let sig = line_editor
@@ -473,12 +523,18 @@ where
             match sig {
                 Signal::Success(line) => {
                     if let Err(err) = self.process_line(line) {
-                        eprintln!("{}", err);
+                        (self.error_handler)(err, self)?;
                     }
                 }
-                Signal::CtrlC => {}
+                Signal::CtrlC => {
+                    if self.stop_on_ctrl_c {
+                        break;
+                    }
+                }
                 Signal::CtrlD => {
-                    break;
+                    if self.stop_on_ctrl_d {
+                        break;
+                    }
                 }
             }
         }
@@ -486,13 +542,14 @@ where
         Ok(())
     }
 
+    /// Execute REPL
     #[cfg(feature = "async")]
     pub async fn run_async(&mut self) -> Result<()> {
         enable_virtual_terminal_processing();
         if let Some(banner) = &self.banner {
             println!("{}", banner);
         }
-        let mut line_editor = self.build_reedline()?;
+        let mut line_editor = self.build_line_editor()?;
 
         loop {
             let sig = line_editor
@@ -501,12 +558,18 @@ where
             match sig {
                 Signal::Success(line) => {
                     if let Err(err) = self.process_line_async(line).await {
-                        eprintln!("{}", err);
+                        (self.error_handler)(err, self)?;
                     }
                 }
-                Signal::CtrlC => {}
+                Signal::CtrlC => {
+                    if self.stop_on_ctrl_c {
+                        break;
+                    }
+                }
                 Signal::CtrlD => {
-                    break;
+                    if self.stop_on_ctrl_d {
+                        break;
+                    }
                 }
             }
         }
