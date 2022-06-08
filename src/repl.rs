@@ -374,18 +374,21 @@ where
             }
         }
 
-        #[cfg(feature = "async")]
-        {
-            if let Some(callback) = self.after_command_callback_async {
-                match callback(&mut self.context).await {
-                    Ok(new_prompt) => {
-                        if let Some(new_prompt) = new_prompt {
-                            self.prompt.update_prefix(&new_prompt);
-                        }
+        Ok(())
+    }
+
+    #[cfg(feature = "async")]
+    async fn execute_after_command_callback_async(&mut self) -> core::result::Result<(), E> {
+        self.execute_after_command_callback()?;
+        if let Some(callback) = self.after_command_callback_async {
+            match callback(&mut self.context).await {
+                Ok(new_prompt) => {
+                    if let Some(new_prompt) = new_prompt {
+                        self.prompt.update_prefix(&new_prompt);
                     }
-                    Err(err) => {
-                        eprintln!("failed to execute after_command_callback {:?}", err);
-                    }
+                }
+                Err(err) => {
+                    eprintln!("failed to execute after_command_callback {:?}", err);
                 }
             }
         }
@@ -422,7 +425,7 @@ where
                         err.print().expect("failed to print");
                     }
                 };
-                self.execute_after_command_callback()?;
+                self.execute_after_command_callback_async().await?;
             }
             None => {
                 if command == "help" {
