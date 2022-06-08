@@ -1,10 +1,9 @@
-extern crate reedline_repl_rs;
+//! Example using Repl with a custom error type.
 
-use clap::{ArgMatches, Command};
+use reedline_repl_rs::clap::{ArgMatches, Command};
 use reedline_repl_rs::Repl;
 use std::fmt;
 
-/// Example using Repl with a custom error type.
 #[derive(Debug)]
 enum CustomError {
     ReplError(reedline_repl_rs::Error),
@@ -28,7 +27,7 @@ impl fmt::Display for CustomError {
 
 impl std::error::Error for CustomError {}
 
-// Do nothing, unsuccesfully
+/// Do nothing, unsuccesfully
 fn hello<T>(_args: ArgMatches, _context: &mut T) -> Result<Option<String>, CustomError> {
     Err(CustomError::StringError("Returning an error".to_string()))
 }

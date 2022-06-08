@@ -1,18 +1,14 @@
-extern crate reedline_repl_rs;
-
-use clap::{Arg, ArgMatches, Command};
-use reedline_repl_rs::Repl;
-use reedline_repl_rs::Result;
+//! Example using Repl with Context
+use reedline_repl_rs::clap::{Arg, ArgMatches, Command};
+use reedline_repl_rs::{Repl, Result};
 use std::collections::VecDeque;
-
-/// Example using Repl with Context
 
 #[derive(Default)]
 struct Context {
     list: VecDeque<String>,
 }
 
-// Append name to list
+/// Append name to list
 fn append(args: ArgMatches, context: &mut Context) -> Result<Option<String>> {
     let name: String = args.value_of("name").unwrap().to_string();
     context.list.push_back(name);
@@ -21,7 +17,7 @@ fn append(args: ArgMatches, context: &mut Context) -> Result<Option<String>> {
     Ok(Some(list.join(", ")))
 }
 
-// Prepend name to list
+/// Prepend name to list
 fn prepend(args: ArgMatches, context: &mut Context) -> Result<Option<String>> {
     let name: String = args.value_of("name").unwrap().to_string();
     context.list.push_front(name);

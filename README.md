@@ -11,17 +11,17 @@ Features:
 - Interactive tab-completion
 - Fish-style history autosuggestions
 - Command Syntax highlighting 
-- optional File-based command History
-- Feature-Flag for async support
+- Optional file-based command History
+- Feature-flag for async support
 - Clear input with `CTRL+C`, exit repl with `CTRL+D`
 
 Basic example code:
 
 ```rust
+use reedline_repl_rs::clap::{Arg, ArgMatches, Command};
 use reedline_repl_rs::{Repl, Result};
-use clap::{Arg, ArgMatches, Command};
 
-// Write "Hello" with given name
+/// Write "Hello" with given name
 fn hello<T>(args: ArgMatches, _context: &mut T) -> Result<Option<String>> {
     Ok(Some(format!("Hello, {}", args.value_of("who").unwrap())))
 }

@@ -1,12 +1,8 @@
-extern crate reedline_repl_rs;
+//! Example using Repl without Context (or, more precisely, a Context of ())
+use reedline_repl_rs::clap::{Arg, ArgMatches, Command};
+use reedline_repl_rs::{Repl, Result};
 
-use clap::{Arg, ArgMatches, Command};
-use reedline_repl_rs::Repl;
-use reedline_repl_rs::Result;
-
-/// Example using Repl without Context (or, more precisely, a Context of ())
-
-// Add two numbers. Have to make this generic to be able to pass a Context of type ()
+/// Add two numbers. Have to make this generic to be able to pass a Context of type ()
 fn add<T>(args: ArgMatches, _context: &mut T) -> Result<Option<String>> {
     let first: i32 = args.value_of("first").unwrap().parse()?;
     let second: i32 = args.value_of("second").unwrap().parse()?;
@@ -14,7 +10,7 @@ fn add<T>(args: ArgMatches, _context: &mut T) -> Result<Option<String>> {
     Ok(Some((first + second).to_string()))
 }
 
-// Write "Hello"
+/// Write "Hello"
 fn hello<T>(args: ArgMatches, _context: &mut T) -> Result<Option<String>> {
     Ok(Some(format!("Hello, {}", args.value_of("who").unwrap())))
 }

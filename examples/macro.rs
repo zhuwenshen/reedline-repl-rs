@@ -1,7 +1,8 @@
-use clap::{Arg, ArgMatches, Command};
+//! Example using initialize_repl macro
+use reedline_repl_rs::clap::{Arg, ArgMatches, Command};
 use reedline_repl_rs::{initialize_repl, Repl, Result};
 
-// Write "Hello" with given name
+/// Write "Hello" with given name
 fn hello<T>(args: ArgMatches, _context: &mut T) -> Result<Option<String>> {
     Ok(Some(format!("Hello, {}", args.value_of("who").unwrap())))
 }

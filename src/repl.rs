@@ -88,7 +88,7 @@ where
     /// Give your Repl a name. This is used in the help summary for the Repl.
     pub fn with_name(mut self, name: &str) -> Self {
         self.name = name.to_string();
-        self.with_formatted_prompt(&format!("{}> ", name))
+        self.with_formatted_prompt(name)
     }
 
     /// Give your Repl a banner. This is printed at the start of running the Repl.
