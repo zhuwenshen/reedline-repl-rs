@@ -11,8 +11,12 @@ env:
 
 jobs:
   build:
+    strategy:
+      fail-fast: false
+      matrix:
+        platform: [macos-latest, ubuntu-latest, windows-latest]
 
-    runs-on: ubuntu-latest
+    runs-on: ${{ matrix.platform }}
 
     steps:
     - uses: actions/checkout@v3
@@ -29,7 +33,7 @@ jobs:
       run: cargo build --verbose
 
     - name: 🚧 Build with async feature
-      run: cargo build --features async --verbose
+      run: cargo build --all-features --verbose
 
     - name: ✅ Run tests
-      run: cargo test --verbose
+      run: cargo test --all-features --verbose

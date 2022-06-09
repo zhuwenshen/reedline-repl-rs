@@ -42,7 +42,7 @@
 //! # Async Support
 //!
 //! The `async` feature allows you to write async REPL code:
-//! ```rust,ignore
+//! ```rust,no_run
 #![doc = include_str!("../examples/async.rs")]
 //! ```
 //! A few things to note:
@@ -51,7 +51,7 @@
 //! # Keybindings
 //!
 //! Per default Emacs-style keybindings are used
-//! ```rust,ignore
+//! ```rust,no_run
 #![doc = include_str!("../examples/custom_keybinding.rs")]
 //! ```
 //! A few things to note:
