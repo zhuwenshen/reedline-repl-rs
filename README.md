@@ -47,6 +47,7 @@ fn main() -> Result<()> {
 
 Running the example above:
 
+![Colored Terminal Output](screenshot.png)
 ```plain
 Welcome to MyApp
 MyApp〉help

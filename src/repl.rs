@@ -322,6 +322,7 @@ where
                 .clone()
                 .print_help()
                 .expect("failed to print help");
+            println!();
         } else {
             eprintln!("Help not found for command '{}'", args[0]);
         }

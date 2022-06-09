@@ -52,7 +52,7 @@
 //!
 //! Per default Emacs-style keybindings are used
 //! ```rust,ignore
-#![doc = include_str!("../examples/async.rs")]
+#![doc = include_str!("../examples/custom_keybinding.rs")]
 //! ```
 //! A few things to note:
 //! - The ugly Pin::Box workaround is required because of unstable rust async Fn's  
