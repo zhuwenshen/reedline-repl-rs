@@ -14,9 +14,9 @@ edition = "2021"
 # See more keys and their definitions at https://doc.rust-lang.org/cargo/reference/manifest.html
 
 [dependencies]
-reedline = "0.6.0"
-nu-ansi-term = { version = "0.45.1" }
-crossterm = { version = "0.23.2" }
+reedline = "0.12"
+nu-ansi-term = { version = "0.46.0"}
+crossterm = "0.24"
 yansi = "0.5.1"
 regex = "1"
 clap = "3"

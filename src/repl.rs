@@ -353,6 +353,8 @@ where
             None => {
                 if command == "help" {
                     self.show_help(args)?;
+                } else if command == "exit" {
+                    self.stop_on_ctrl_c = true;
                 } else {
                     return Err(Error::UnknownCommand(command.to_string()).into());
                 }
@@ -431,6 +433,8 @@ where
             None => {
                 if command == "help" {
                     self.show_help(args)?;
+                } else if command == "exit" {
+                    self.stop_on_ctrl_c = true;
                 } else {
                     return Err(Error::UnknownCommand(command.to_string()).into());
                 }
@@ -529,6 +533,9 @@ where
                     if let Err(err) = self.process_line(line) {
                         (self.error_handler)(err, self)?;
                     }
+                    if self.stop_on_ctrl_c {
+                        break;
+                    }
                 }
                 Signal::CtrlC => {
                     if self.stop_on_ctrl_c {
@@ -563,6 +570,9 @@ where
                 Signal::Success(line) => {
                     if let Err(err) = self.process_line_async(line).await {
                         (self.error_handler)(err, self)?;
+                    }
+                    if self.stop_on_ctrl_c {
+                        break;
                     }
                 }
                 Signal::CtrlC => {
