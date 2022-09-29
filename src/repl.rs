@@ -445,11 +445,13 @@ where
     }
 
     fn parse_line(&self, line: &str) -> (String, Vec<String>) {
-        let r = regex::Regex::new(r#"("[^"\n]+"|[\S]+)"#).unwrap();
-        let mut args = r
-            .captures_iter(line)
-            .map(|a| a[0].to_string().replace('\"', ""))
-            .collect::<Vec<String>>();
+        // let r = regex::Regex::new(r#"("[^"\n]+"|[\S]+)"#).unwrap();
+        // let args = r
+        //     .captures_iter(line)
+        //     .map(|a| a[0].to_string().replace('\"', ""))
+        //     .collect::<Vec<String>>();
+        let mut args = shlex::split(line).unwrap_or_default();
+        println!("new :{:?}", args);
         let command: String = args.drain(..1).collect();
         (command, args)
     }

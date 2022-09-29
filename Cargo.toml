@@ -20,6 +20,7 @@ crossterm = "0.24"
 yansi = "0.5.1"
 regex = "1"
 clap = "3"
+shlex = "1.1"
 
 [dev-dependencies]
 tokio = { version = "1", features = ["macros", "rt-multi-thread"] } # only for async example
