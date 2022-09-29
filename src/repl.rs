@@ -47,6 +47,7 @@ pub struct Repl<Context, E: Display> {
     stop_on_ctrl_c: bool,
     stop_on_ctrl_d: bool,
     error_handler: ErrorHandler<Context, E>,
+    init_commands: Vec<String>, // 初始化的命令
 }
 
 impl<Context, E> Repl<Context, E>
@@ -86,6 +87,7 @@ where
             stop_on_ctrl_c: false,
             stop_on_ctrl_d: true,
             error_handler: default_error_handler,
+            init_commands: vec![],
         }
     }
 
@@ -269,6 +271,14 @@ where
         let name = command.get_name().to_string();
         self.commands
             .insert(name.clone(), ReplCommand::new(&name, command, callback));
+        self
+    }
+
+    /// 初始化的命令
+    pub fn with_init_commands(mut self, init_commands: &[&str]) -> Self {
+        let mut init_commands: Vec<_> = init_commands.iter().map(|d| d.to_string()).collect();
+        init_commands.reverse();
+        self.init_commands = init_commands;
         self
     }
 
@@ -527,6 +537,15 @@ where
         let mut line_editor = self.build_line_editor()?;
 
         loop {
+            if let Some(line) = self.init_commands.pop() {
+                if let Err(err) = self.process_line(line) {
+                    (self.error_handler)(err, self)?;
+                }
+                if self.stop_on_ctrl_c {
+                    break;
+                }
+                continue;
+            }
             let sig = line_editor
                 .read_line(&self.prompt)
                 .expect("failed to read_line");
@@ -565,6 +584,15 @@ where
         let mut line_editor = self.build_line_editor()?;
 
         loop {
+            if let Some(line) = self.init_commands.pop() {
+                if let Err(err) = self.process_line_async(line).await {
+                    (self.error_handler)(err, self)?;
+                }
+                if self.stop_on_ctrl_c {
+                    break;
+                }
+                continue;
+            }
             let sig = line_editor
                 .read_line(&self.prompt)
                 .expect("failed to read_line");
