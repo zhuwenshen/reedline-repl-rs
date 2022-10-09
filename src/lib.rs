@@ -109,6 +109,7 @@ pub use crossterm;
 pub use error::{Error, Result};
 pub use nu_ansi_term;
 pub use reedline;
+pub use reedline::ExternalPrinter;
 #[doc(inline)]
 pub use repl::Repl;
 #[cfg(feature = "async")]

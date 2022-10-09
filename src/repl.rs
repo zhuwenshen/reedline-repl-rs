@@ -10,8 +10,8 @@ use crossterm::event::{KeyCode, KeyModifiers};
 use nu_ansi_term::{Color, Style};
 use reedline::{
     default_emacs_keybindings, ColumnarMenu, DefaultHinter, DefaultValidator, Emacs,
-    ExampleHighlighter, FileBackedHistory, Keybindings, Reedline, ReedlineEvent, ReedlineMenu,
-    Signal,
+    ExampleHighlighter, ExternalPrinter, FileBackedHistory, Keybindings, Reedline, ReedlineEvent,
+    ReedlineMenu, Signal,
 };
 use std::boxed::Box;
 use std::collections::HashMap;
@@ -48,6 +48,7 @@ pub struct Repl<Context, E: Display> {
     stop_on_ctrl_d: bool,
     error_handler: ErrorHandler<Context, E>,
     init_commands: Vec<String>, // 初始化的命令
+    printer: ExternalPrinter<String>,
 }
 
 impl<Context, E> Repl<Context, E>
@@ -88,9 +89,15 @@ where
             stop_on_ctrl_d: true,
             error_handler: default_error_handler,
             init_commands: vec![],
+            printer: ExternalPrinter::new(102400),
         }
     }
 
+    /// Give your Repl a name. This is used in the help summary for the Repl.
+    pub fn with_printer(mut self, printer: ExternalPrinter<String>) -> Self {
+        self.printer = printer;
+        self
+    }
     /// Give your Repl a name. This is used in the help summary for the Repl.
     pub fn with_name(mut self, name: &str) -> Self {
         self.name = name.to_string();
@@ -510,7 +517,8 @@ where
             .with_highlighter(Box::new(ExampleHighlighter::new(valid_commands.clone())))
             .with_validator(validator)
             .with_partial_completions(self.partial_completions)
-            .with_quick_completions(self.quick_completions);
+            .with_quick_completions(self.quick_completions)
+            .with_external_printer(self.printer.clone());
 
         if self.hinter_enabled {
             line_editor = line_editor.with_hinter(Box::new(

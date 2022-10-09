@@ -14,7 +14,7 @@ edition = "2021"
 # See more keys and their definitions at https://doc.rust-lang.org/cargo/reference/manifest.html
 
 [dependencies]
-reedline = "0.12"
+reedline = {version = "0.12", features = ["external_printer"]}
 nu-ansi-term = { version = "0.46.0"}
 crossterm = "0.24"
 yansi = "0.5.1"
